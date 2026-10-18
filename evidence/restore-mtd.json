@@ -1,0 +1,27 @@
+{
+  "scope": "Actual production restore.c, loader read/write function bodies and formats.c; simulated MTD I/O, no physical NAND tested",
+  "flash_bytes": 268435456,
+  "upload_chunk_bytes": 4194304,
+  "runs": [
+    {
+      "case": "full-256m-restore",
+      "engine_peak_allocated_bytes": 4194304,
+      "largest_engine_allocation": 2097152,
+      "data_erases_before_boot": 2032,
+      "boot_erase_order": [
+        1048576,
+        1179648,
+        1310720,
+        1441792,
+        1572864,
+        1703936,
+        262144,
+        393216,
+        524288,
+        655360,
+        786432,
+        917504
+      ]
+    }
+  ]
+}

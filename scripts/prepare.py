@@ -63,12 +63,49 @@ def main():
     replace(board / "vendor/eth_ni.c", "static struct phy_driver ni_internal =", "U_BOOT_PHY_DRIVER(tyfza1_internal) =")
     replace(board / "vendor/eth_ni.c", "\tphy_register(&ni_internal);", "")
     replace(board / "vendor/eth_ni.c", "cmdtp->help", "cmdtp->usage")
+    replace(board / "vendor/eth_ni.c", "\tif (result != CA_E_OK)\n\t\tvalue = result;", "\tif (result != CA_E_OK)\n\t\treturn result;")
+    replace(board / "vendor/eth_ni.c", "\taddr &= 0x1f;\n\n\tif (devad == MDIO_DEVAD_NONE)\n\t\tresult =", "\taddr &= 0x1f;\n\tif (addr == 7 && devad == MDIO_DEVAD_NONE) return 0xffff;\n\n\tif (devad == MDIO_DEVAD_NONE)\n\t\tresult =")
+    replace(board / "vendor/eth_ni.c", "static int cortina_ni_start(struct udevice *dev)", '#include "../ni-board.inc"\n\nstatic int cortina_ni_start(struct udevice *dev)')
+    replace(board / "vendor/eth_ni.c", "static void ni_auto_scan_active_port", "static int tyf_ni_phy_status(struct phy_device *phy);\n\nstatic void ni_auto_scan_active_port")
+    replace(board / "vendor/eth_ni.c", "\t\tphy_startup(phydev);", "\t\ttyf_ni_phy_status(phydev);")
+    replace(board / "vendor/eth_ni.c", "\t\tphy_startup(p);", "\t\ttyf_ni_phy_status(p);")
+    replace(board / "vendor/eth_ni.c", '\tprintf("CA NI version 0.9(DM_ETH)\\n");', '\tret = tyf_ni_board_prepare(priv);\n\tif (ret) return ret;\n\tprintf("CA NI version 0.9(DM_ETH)\\n");')
+    replace(board / "vendor/eth_ni.c", "\t\t\t\tphy_config(phydev);\n\n\t\t\t\tval = phy_read", "\t\t\t\tval = phy_config(phydev);\n\t\t\t\tif (val) return val;\n\t\t\t\tif (phydev->is_c45) continue;\n\n\t\t\t\tval = phy_read")
+    replace(board / "vendor/eth_ni.c", '\t} else\n\t\tprintf("No PHY available\\n");', '\t} else\n\t\tputs("Recovery will wait for a LAN link.\\n");')
+    replace(board / "vendor/eth_ni.c", "\t\tpriv->aal_mode_sync(priv->active_port, priv->maps[priv->active_port].sds_mode,\n\t\t\t\t    p);", "\t\tif (priv->active_port == 4 && tyf_ni_port4_speed(p)) return -EIO;\n\t\tif (priv->aal_mode_sync(priv->active_port, priv->maps[priv->active_port].sds_mode, p))\n\t\t\treturn -EIO;")
+    replace(board / "vendor/eth_ni.c", "\tni_enable_tx_rx(priv->active_port, 1);", "\tif (is_valid_port(priv, priv->active_port)) ni_enable_tx_rx(priv->active_port, 1);")
+    replace(board / "vendor/eth_ni.c", "\t/* get the hw write pointer */", "\tif (tyf_ni_refresh_link(priv)) return -EIO;\n\n\t/* get the hw write pointer */")
+    replace(board / "vendor/eth_ni.c", "\tstatic unsigned char   pkt_buf[2048];", "\tstatic unsigned char   pkt_buf[2048];\n\tif (!priv->phydev || !priv->phydev->link) return -ENETDOWN;\n\tif (length < 0 || length > 1518) return -EMSGSIZE;")
+    replace(board / "vendor/eth_ni.c", '''\tif (hw_tx_rd_ptr != sw_tx_wr_ptr) {
+\t\tprintf("%s: Tx FIFO is not available!\\n", __func__);
+\t\treturn 1;
+\t}''', '''\t/* lwIP may send consecutive TCP ACKs before the previous frame drains. */
+\tfor (loop = 0; hw_tx_rd_ptr != sw_tx_wr_ptr && loop < 10000; loop++) {
+\t\tudelay(1);
+\t\thw_tx_rd_ptr = CORTINA_CA_REG_READ(NI_HV_XRAM_CPUXRAM_CPU_STAT_TX_0);
+\t}
+\tif (hw_tx_rd_ptr != sw_tx_wr_ptr) {
+\t\tprintf("%s: TX timeout (read=%x write=%x)\\n", __func__, hw_tx_rd_ptr, sw_tx_wr_ptr);
+\t\treturn -ETIMEDOUT;
+\t}''')
+    # Preserve the caller's actual length when the XRAM transfer needs extra padding.
+    replace(board / "vendor/eth_ni.c", "\t/* a workaround on 2015/10/01 the packet size+CRC should be 8-byte alignment */", "\tunsigned int original_length = length;\n\n\t/* a workaround on 2015/10/01 the packet size+CRC should be 8-byte alignment */")
+    replace(board / "vendor/eth_ni.c", "memcpy(&(pkt_buf[HEADER_A_SIZE]), (const void *)packet, length);", "memcpy(&(pkt_buf[HEADER_A_SIZE]), (const void *)packet, original_length);")
+    replace(board / "vendor/eth_ni.c", "if (packet_status.bf.packet_size > 1518) {", "if (packet_status.bf.packet_size > 1518 || packet_status.bf.packet_size < 18) {")
+    replace(board / "vendor/eth_ni.h", "\tuint8_t is_qxsgmii;", "\tuint8_t is_qxsgmii;\n\tunsigned long link_polled;")
+    # Port4 uses the exact TYFZA1 S3 sequence above, shared with the Linux port.
+    replace(board / "vendor/eth_ni_taurus.c", "\tif (port >= NI_PORT_4) {", "\tif (port >= NI_PORT_5) {")
     replace(board / "vendor/eth_ni.c", "//ni_enable_tx_rx(priv->active_port, 0);", "if (is_valid_port(priv, priv->active_port))\n\t\tni_enable_tx_rx(priv->active_port, 0);")
     replace(board / "vendor/eth_ni.c", '\t/*\n\tif ((buf = env_get("auto_scan_active_port")) != 0) {\n\t\tactive_scan = simple_strtoul(buf, NULL, 0);\n\t\tprintf(MODULE_NAME": env active_scan=%d\\n", active_scan);\n\t\tpriv->active_scan = active_scan;\n\t}\n\t*/', '\tif ((buf = env_get("auto_scan_active_port")) != 0) {\n\t\tactive_scan = simple_strtoul(buf, NULL, 0);\n\t\tpriv->active_scan = !!active_scan;\n\t}')
     replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "#include <watchdog.h>", "#include <u-boot/schedule.h>")
     replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "WATCHDOG_RESET();", "schedule();")
     replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "(corrected >= (info->ecc_strength-2))", "(*corrected >= (info->ecc_strength-2))")
     replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "int timeout = start + CONFIG_SYS_HZ;", "int timeout = CONFIG_SYS_HZ;")
+    replace(board / "vendor/spi_nand/cortina_spi_nand_base.c",
+            "\tif(!chip || !info)\n\t\treturn -ENOMEM;",
+            "\tif(!chip || !info)\n\t\treturn -ENOMEM;\n\tinfo->mtd = mtd;")
+    replace(board / "vendor/spi_nand/cortina_spi_nand_base.c",
+            "ident_done:\n", "ident_done:\n    mtd->size = info->size;\n")
     replace(board / "vendor/spi_nand/spi-nand-core.c", "#include <nand.h>", "#include <nand.h>\n#include <linux/mtd/rawnand.h>")
     shutil.copytree(ROOT / "overlay", dest, dirs_exist_ok=True)
     # Preserve the complete frontend while reducing the two-FIP flash footprint.
@@ -81,11 +118,45 @@ def main():
     page.write_bytes(b"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Encoding: gzip\r\nConnection: close\r\nContent-Length: " + str(len(compressed)).encode() + b"\r\n\r\n" + compressed)
     replace(http, "fs_set_data(file, httpd_page, httpd_page_size);", "fs_set_data(file, httpd_page, httpd_page_size);\n\t\tfile->flags = FS_FILE_FLAGS_HEADER_INCLUDED;")
     replace(http, '#include <net/httpd.h>', '#include <net/httpd.h>\n#include <tyfza1_recovery.h>')
+    replace(http, "\tHTTP_JOB_NAND_SCRUB,", "\tHTTP_JOB_NAND_SCRUB,\n\tHTTP_JOB_TYF_RESTORE,")
+    replace(http, 'static const char *phase = "idle";', 'static const char *phase = "idle";\n#if defined(CONFIG_TARGET_TYFZA1)\n#include <net/tyfza1-httpd.inc>\n#endif')
+    replace(http, '\tjson_string(&j, output_buf);', '\tjson_string(&j, output_buf);\n#if defined(CONFIG_TARGET_TYFZA1)\n\ttyf_http_restore_info(&j);\n#endif')
+    replace(http, '\tif (flash_all_upload_ready && strcmp(op, "flash-all"))', '''#if defined(CONFIG_TARGET_TYFZA1)
+\t{
+\t\tint native = tyf_http_parse_restore(&r, op, id);
+\t\tif (native != 1) return native;
+\t}
+#endif
+\tif (flash_all_upload_ready && strcmp(op, "flash-all"))''')
+    replace(http, '\tcase HTTP_JOB_NAND_SCRUB:', '''#if defined(CONFIG_TARGET_TYFZA1)
+\tcase HTTP_JOB_TYF_RESTORE:
+\t\tret = tyfza1_restore_job(tyf_restore_operation, buffer_addr, buffer_size,
+\t\t\t\t\t tyf_restore_total, tyf_restore_offset, tyf_restore_id, service_network);
+\t\tbreak;
+#endif
+\tcase HTTP_JOB_NAND_SCRUB:''')
+    replace(http, '\tif (content_len <= 0)\n\t\tgoto reject;', '''\tif (content_len <= 0)
+\t\tgoto reject;
+#if defined(CONFIG_TARGET_TYFZA1)
+\tif (!strcmp(uri, "/api/upload-all-flash") ||
+\t    (tyfza1_restore_status()->active && !strcmp(uri, "/api/upload") && content_len > 0x400000))
+\t\tgoto reject;
+#endif''')
+    replace(http, '\treturn len && end >= addr && addr >= gd->ram_base && end <= safe_end;', '''#if defined(CONFIG_TARGET_TYFZA1)
+\tif (!tyf_http_upload_safe(addr, len)) return false;
+#endif
+\treturn len && end >= addr && addr >= gd->ram_base && end <= safe_end;''')
+    replace(http, '\thttp_netif = NULL;', '''#if defined(CONFIG_TARGET_TYFZA1)
+\tif (tyfza1_restore_status()->active)
+\t\ttyfza1_restore_job("restore-cancel", 0, 0, 0, 0, tyfza1_restore_status()->id, service_network);
+#endif
+\thttp_netif = NULL;''')
     replace(http, '#define HTTPD_UBI_PART\t\t"ubi"', '#define HTTPD_UBI_PART\t\t"ubi_device"')
     replace(http, '"airoha,an758x-recovery-layout"', '"tianyi,tyfza1-recovery-layout"')
     replace(http, "static int run_bootloader_update(bool bl2)\n{", "static int run_bootloader_update(bool bl2)\n{\n\tif (IS_ENABLED(CONFIG_TARGET_TYFZA1))\n\t\treturn tyfza1_install_loader(buffer_addr, buffer_size, bl2, service_network);")
     replace(http, "static int run_firmware_update(void)\n{", "static int run_firmware_update(void)\n{\n\tif (IS_ENABLED(CONFIG_TARGET_TYFZA1))\n\t\treturn tyfza1_install_system(buffer_addr, buffer_size, service_network);")
     replace(http, "static int run_ubi_rebuild(void)\n{", "static int run_ubi_rebuild(void)\n{\n\tif (IS_ENABLED(CONFIG_TARGET_TYFZA1))\n\t\treturn tyfza1_rebuild_ubi(service_network);")
+    replace(http, '\t\treturn run_commandf("bootm 0x%lx", load_addr);', '\t\treturn tyfza1_boot_upload(load_addr, buffer_size);')
     if fresh:
         arm = dest / "arch/arm/Kconfig"
         replace(arm, "config TARGET_PRESIDIO_ASIC", "config TARGET_TYFZA1\n\tbool \"Tianyi TYFZA1 (RTL9617CVW)\"\n\tselect ARM64\n\tselect DM\n\tselect OF_CONTROL\n\tselect BOARD_LATE_INIT\n\nconfig TARGET_PRESIDIO_ASIC")

@@ -1,0 +1,77 @@
+{
+  "scope": "Production NI helpers in simulated MMIO, S3 speed writes compared against fixed vendor C/bitfields; no electrical/link acceptance",
+  "s3_speed_cases": [
+    {
+      "speed": 10,
+      "seed": 0,
+      "writes": 14,
+      "trace_sha256": "f352e18f7b14a522f13d47062808f9d5c362f06dc67871d23078a7f061b8f7ef"
+    },
+    {
+      "speed": 10,
+      "seed": 2779096485,
+      "writes": 14,
+      "trace_sha256": "d85caa4b338bd6882d0da21e66da50c686ea55f69e1a16f710ae2dbee2346d33"
+    },
+    {
+      "speed": 10,
+      "seed": 4294967295,
+      "writes": 14,
+      "trace_sha256": "92bffee2ff324bb14a53bc7616d4e0f3b04a4a9932d17862ad042170d5e0e58c"
+    },
+    {
+      "speed": 100,
+      "seed": 0,
+      "writes": 14,
+      "trace_sha256": "16f2534a5fb56e36bec64fcea44e2c4eea102f98f94499cb8fd2c05a40258f62"
+    },
+    {
+      "speed": 100,
+      "seed": 2779096485,
+      "writes": 14,
+      "trace_sha256": "4c9bc2e504f29a396c076d6661085221a6945bf6d6e4b91d5845d754976c2c96"
+    },
+    {
+      "speed": 100,
+      "seed": 4294967295,
+      "writes": 14,
+      "trace_sha256": "a178b03e5208f759cb06515bdcbcae7bfceb58b1c85ff43d47a367e1539649f6"
+    },
+    {
+      "speed": 1000,
+      "seed": 0,
+      "writes": 14,
+      "trace_sha256": "d03d5b3833bb409c1996adfb64de370522926f85e020fe5506d2fa51064ac531"
+    },
+    {
+      "speed": 1000,
+      "seed": 2779096485,
+      "writes": 14,
+      "trace_sha256": "ef871c104e24d2f8076f8aa60efd36aec55ea2b8bc4c84950e45e1c78bd8b56d"
+    },
+    {
+      "speed": 1000,
+      "seed": 4294967295,
+      "writes": 14,
+      "trace_sha256": "d65b83021b216ccd3eef43177bb288ce780c4423083bd0b958fe387c74e0fa33"
+    },
+    {
+      "speed": 2500,
+      "seed": 0,
+      "writes": 14,
+      "trace_sha256": "0eaee87429ca19bfcf08c784f83dd9ec4bf8bb0fef3b85bd5ca6a70719f8f976"
+    },
+    {
+      "speed": 2500,
+      "seed": 2779096485,
+      "writes": 14,
+      "trace_sha256": "8a223bb6a645e29d02fd8ea9634eb7945a5a7333de85795343fb4a8cbad6178c"
+    },
+    {
+      "speed": 2500,
+      "seed": 4294967295,
+      "writes": 14,
+      "trace_sha256": "c8a6e5efdd03b0b9d357d3ca08b5f7390ec9f33f344aeaaf2e64687821ab4fbd"
+    }
+  ]
+}

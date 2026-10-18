@@ -1,0 +1,22 @@
+{
+  "frozen_date": "2026-10-18",
+  "source_project": "PonWRT-TYFZA1",
+  "files": [
+    {
+      "source": "port/overlay/target/linux/rtl9617c/files-6.18/drivers/net/phy/realtek/rtl8221b-tyfza1.h",
+      "sha256": "9280051ad8cc1169461cb047e4b7503272163453ffce00fc9663de916d7c7746",
+      "license": "GPL-2.0-or-later"
+    },
+    {
+      "source": "port/overlay/target/linux/rtl9617c/files-6.18/drivers/net/phy/realtek/rtl8221b-tyfza1-patch.h",
+      "sha256": "c9a695636449f335e2279e88547bc157d6c87c823d27286606ad7141acb6b139",
+      "license": "GPL-2.0-or-later"
+    },
+    {
+      "source": "port/overlay/target/linux/rtl9617c/files-6.18/drivers/net/ethernet/realtek/rtl9617c-sgmii.h",
+      "sha256": "03c0f9e1e50b3d1c018b8e6b67c789b69912c82cc224449924490f72a53a9519",
+      "license": "GPL-2.0-or-later"
+    }
+  ],
+  "changes": "Keep initialization and patch data; remove Linux feature discovery/match callbacks; adapt U-Boot MDIO and PHY callbacks separately."
+}

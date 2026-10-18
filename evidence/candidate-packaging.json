@@ -1,0 +1,26 @@
+[
+  {
+    "variant": "4ge",
+    "boot_sha256": "6e47740b0bcbf0ddfcb0e24d805097463aba7498b3f3f9298af7408783c95fe9",
+    "stock_boot_sha256": "7524c98bdfc23c387ed3a720c50839fffb36a1a1f8b9128019ca8e59dc5c957e",
+    "fip_bytes": 481299,
+    "fip_slot_headroom": 305133,
+    "certificate_signatures_verified": 6,
+    "public_key_links_verified": 5,
+    "payload_hashes_verified": 3,
+    "root_public_key_sha256": "d67d968c6901da3cde4f0dbb5e55c6b499c3d0ea214616c8788472def56bff4d",
+    "hardware_validation": "pending; cryptographic consistency does not prove device acceptance or current OTP state"
+  },
+  {
+    "variant": "2p5g",
+    "boot_sha256": "2e599357666f36f10554bbc7fcd0007cd333f474b1e14aaec9e6ea759350a77b",
+    "stock_boot_sha256": "232eed5077c097e0897f2115af030d4556ecfeabd1048402a55f5d522e4290e4",
+    "fip_bytes": 477467,
+    "fip_slot_headroom": 308965,
+    "certificate_signatures_verified": 6,
+    "public_key_links_verified": 5,
+    "payload_hashes_verified": 3,
+    "root_public_key_sha256": "d67d968c6901da3cde4f0dbb5e55c6b499c3d0ea214616c8788472def56bff4d",
+    "hardware_validation": "pending; cryptographic consistency does not prove device acceptance or current OTP state"
+  }
+]

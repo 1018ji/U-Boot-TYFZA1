@@ -82,6 +82,36 @@ out:
 	return ret;
 }
 
+int tyfza1_check_fit(ulong address, size_t size)
+{
+	struct tyf_payload image = { map_sysmem(address, size), size };
+	int ret = verify_fit(&image);
+	unmap_sysmem(image.data);
+	return ret;
+}
+
+int tyfza1_boot_upload(ulong address, size_t size)
+{
+	int ret = tyfza1_check_fit(address, size);
+	if (ret) return ret;
+	/* Source the validated board script when present; otherwise select the board FIT explicitly. */
+	env_set_hex("unzip_src", address);
+	if (fdt_path_offset((void *)address, "/images/script") >= 0)
+		return run_commandf("source %lx:script", address);
+	return run_commandf("bootm %lx#%s", address, env_get("b_conf"));
+}
+
+static int resize_root(struct ubi_volume *root, int lebs)
+{
+	struct ubi_volume_desc *desc;
+	int ret;
+	desc = ubi_open_volume(root->ubi->ubi_num, root->vol_id, UBI_EXCLUSIVE);
+	if (IS_ERR(desc)) return PTR_ERR(desc);
+	ret = ubi_resize_volume(desc, lebs);
+	ubi_close_volume(desc);
+	return ret;
+}
+
 int tyfza1_install_system(ulong address, size_t size, void (*poll)(void))
 {
 	struct tyf_firmware fw;
@@ -89,8 +119,10 @@ int tyfza1_install_system(ulong address, size_t size, void (*poll)(void))
 	const char *committed = env_get("sw_commit");
 	char kernel[16], root[16];
 	char old_commit[2] = "0", old_active[2] = "0", old_try[2] = "2";
+	struct ubi_device *ubi;
+	struct ubi_volume *rootvol, *data;
 	size_t capacity;
-	int slot, ret = -EINVAL;
+	int slot, root_lebs, available, ret = -EINVAL;
 
 	if (committed && strcmp(committed, "0") && strcmp(committed, "1")) goto out;
 	if (committed) old_commit[0] = committed[0];
@@ -107,14 +139,37 @@ int tyfza1_install_system(ulong address, size_t size, void (*poll)(void))
 	snprintf(root, sizeof(root), "ubi_r%d", slot);
 	ret = ubi_volume_get_size(kernel, NULL, &capacity);
 	if (ret || fw.kernel.size > capacity) { ret = -EFBIG; goto out; }
-	ret = ubi_volume_get_size(root, NULL, &capacity);
-	if (ret || fw.root.size > capacity) { ret = -EFBIG; goto out; }
+	ubi = ubi_devices[0];
+	rootvol = ubi->volumes[slot ? 7 : 4];
+	data = ubi->volumes[11];
+	if (!rootvol || strcmp(rootvol->name, root) ||
+	    (data && strcmp(data->name, "rootfs_data")) ||
+	    fw.root.size > 33648640) { ret = -EINVAL; goto out; }
+	root_lebs = DIV_ROUND_UP(fw.root.size, rootvol->usable_leb_size);
+	available = ubi->avail_pebs + rootvol->reserved_pebs + (data ? data->reserved_pebs : 0);
+	if (available - root_lebs < DIV_ROUND_UP(16777216, ubi->leb_size)) {
+		ret = -ENOSPC; goto out;
+	}
+	if (root_lebs > rootvol->reserved_pebs) {
+		if (root_lebs - rootvol->reserved_pebs > ubi->avail_pebs && data) {
+			ret = ubi_volume_remove("rootfs_data");
+			if (ret) goto out;
+			data = NULL;
+		}
+		ret = resize_root(rootvol, root_lebs);
+		if (ret) goto out;
+	}
 	printf("Installing inactive slot %d; current slot and factory volumes are retained.\n", slot);
 	ret = ubi_volume_write(root, (void *)fw.root.data, 0, fw.root.size);
 	if (!ret) ret = volume_verify(root, fw.root.data, fw.root.size, poll);
 	if (ret) goto out;
 	ret = ubi_volume_write(kernel, (void *)fw.kernel.data, 0, fw.kernel.size);
 	if (!ret) ret = volume_verify(kernel, fw.kernel.data, fw.kernel.size, poll);
+	if (ret) goto out;
+	ret = resize_root(rootvol, root_lebs);
+	if (ret) goto out;
+	if (data && (ret = ubi_volume_remove("rootfs_data"))) goto out;
+	ret = run_command("ubi create rootfs_data 0 d b", 0);
 	if (ret) goto out;
 	/* Commit only after both new volumes have passed independent readback. */
 	env_set("sw_commit", slot ? "1" : "0");
@@ -141,37 +196,60 @@ static int read_mtd(struct mtd_info *mtd, size_t offset, size_t length, void *ou
 	return ret ? ret : done == length ? 0 : -EIO;
 }
 
-int tyfza1_install_loader(ulong address, size_t size, bool bl2, void (*poll)(void))
+int tyfza1_validate_loader(ulong address, size_t size)
 {
-	struct tyf_fip next, old;
+	struct tyf_fip next;
 	const unsigned char *input = map_sysmem(address, size);
-	unsigned char *current = NULL, *check = NULL;
+	unsigned char *current = NULL;
 	struct mtd_info *mtd = NULL;
-	size_t base, offset, done;
-	int copy, ret = -EINVAL;
+	int ret = -EINVAL;
 
-	/* Taurus keeps BL2, BL31 and BL33 together; AN758x preloader files cannot apply. */
-	if (bl2 || tyf_parse_loader(input, size, &next)) goto out;
+	if (tyf_parse_loader(input, size, &next) || tyfza1_loader_certificates(input, size)) goto out;
 	mtd_probe_devices();
 	mtd = get_mtd_device_nm("boot");
 	if (IS_ERR(mtd)) { ret = PTR_ERR(mtd); mtd = NULL; goto out; }
 	if (mtd->size != TYF_BOOT_SIZE || mtd->erasesize != 0x20000 ||
 	    mtd->writesize != 0x800) goto out;
 	current = malloc_cache_aligned(TYF_BOOT_SIZE);
-	check = malloc_cache_aligned(mtd->erasesize);
-	if (!current || !check) { ret = -ENOMEM; goto out; }
+	if (!current) { ret = -ENOMEM; goto out; }
 	ret = read_mtd(mtd, 0, TYF_BOOT_SIZE, current);
 	if (ret) goto out;
-	ret = -EINVAL;
-	if (tyf_parse_loader(current, TYF_BOOT_SIZE, &old) ||
-	    old.bl2.size != next.bl2.size || old.bl31.size != next.bl31.size ||
-	    memcmp(old.bl2.data, next.bl2.data, old.bl2.size) ||
-	    memcmp(old.bl31.data, next.bl31.data, old.bl31.size) ||
-	    memcmp(current, input, TYF_FIP0_OFFSET) ||
-	    memcmp(current + 0x1c0000, input + 0x1c0000, 0x40000)) {
+	ret = tyf_loader_preserves_device(input, size, current, TYF_BOOT_SIZE) ? -EINVAL : 0;
+	if (ret)
 		puts("Loader must preserve this device's GPT, BL2, BL31 and reserved bytes.\n");
-		goto out;
+out:
+	free(current);
+	if (mtd) put_mtd_device(mtd);
+	unmap_sysmem(input);
+	return ret;
+}
+
+int tyfza1_install_loader(ulong address, size_t size, bool bl2, void (*poll)(void))
+{
+	const unsigned char *input;
+	const void *bundle;
+	struct tyf_payload selected;
+	unsigned char *check = NULL;
+	struct mtd_info *mtd;
+	size_t base, offset, done;
+	int copy, ret;
+	/* Taurus has no separate AN758x preloader partition. */
+	if (bl2) return -EINVAL;
+	bundle = map_sysmem(address, size);
+	ret = tyf_select_loader(bundle, size, env_get("board_variant"), &selected);
+	if (!ret) {
+		address = map_to_sysmem(selected.data);
+		size = selected.size;
 	}
+	unmap_sysmem(bundle);
+	if (ret) return -EINVAL;
+	ret = tyfza1_validate_loader(address, size);
+	if (ret) return ret;
+	input = map_sysmem(address, size);
+	mtd = get_mtd_device_nm("boot");
+	if (IS_ERR(mtd)) { unmap_sysmem(input); return PTR_ERR(mtd); }
+	check = malloc_cache_aligned(mtd->erasesize);
+	if (!check) { ret = -ENOMEM; goto out; }
 	for (offset = TYF_FIP0_OFFSET; offset < 0x1c0000; offset += mtd->erasesize) {
 		ret = mtd_block_isbad(mtd, offset);
 		if (ret) { ret = ret < 0 ? ret : -EIO; goto out; }
@@ -196,8 +274,7 @@ int tyfza1_install_loader(ulong address, size_t size, bool bl2, void (*poll)(voi
 	}
 out:
 	free(check);
-	free(current);
-	if (mtd) put_mtd_device(mtd);
+	put_mtd_device(mtd);
 	unmap_sysmem(input);
 	return ret;
 }

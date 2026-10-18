@@ -42,7 +42,7 @@ footer{text-align:center;padding:12px 0 4px}footer a{color:var(--blue)}
 <label for="firmware">sysupgrade.bin</label>
 <div class="row"><input id="firmware" type="file" accept=".bin"><button id="flashButton" class="primary" data-t="uploadFlash">Upload and flash</button></div>
 <h3 class="actions" data-t="ubootTitle">Flash U-Boot</h3>
-<label for="uboot">taurus_spi_nand_loader.img</label>
+<label for="uboot">tyfza1-uboot-universal.bin</label>
 <div class="row"><input id="uboot" type="file" accept=".img,.bin"><button id="ubootButton" data-t="uploadWrite">Upload and write</button></div>
 <div class="row actions"><button data-action="boot-production" data-t="bootSystem">Boot system</button><button data-action="reset" data-t="reboot">Reboot</button></div>
 <div id="ubiManagement">
@@ -71,7 +71,7 @@ footer{text-align:center;padding:12px 0 4px}footer a{color:var(--blue)}
 <div class="stack"><select id="writeTarget" class="wide"></select><input id="partitionImage" type="file"><button id="writeButton" class="danger" data-t="uploadWrite">Upload and write</button></div>
 </details>
 <details><summary data-t="restoreAll">Restore entire Flash</summary>
-<p class="muted" data-t="restoreAllHint">Restores a main-area .bin from offset 0, including bootloader and board data. Bad-block offsets stay in place; OOB is not included. The file must fit in Flash.</p>
+<p class="muted" data-t="restoreAllHint">Restores a main-area .bin from offset 0, including bootloader and board data. Chunks are written and verified before updating boot. Bad-block offsets stay in place; OOB is excluded. The file must match Flash capacity.</p>
 <div class="row"><input id="allFlashImage" type="file" accept=".bin"><button id="allFlashButton" class="danger" data-t="uploadWrite">Upload and write</button></div>
 </details>
 <details><summary data-t="clearBadBlocks">Clear bad block markers</summary>
@@ -92,10 +92,11 @@ footer{text-align:center;padding:12px 0 4px}footer a{color:var(--blue)}
 <script>
 'use strict';
 const words={
-zh:{bl2Title:'刷写 BL2',ubiOperations:'UBI 操作',firstInstall:'可直接刷写 TYFZA1 sysupgrade。重建 UBI 会清空系统数据，并尝试保留本机出厂数据。',boardData:'板级数据',ubootTitle:'刷写 U-Boot',model:'机型',version:'版本',flash:'刷机',backup:'备份',advanced:'高级',install:'刷写系统',uploadFlash:'上传并刷写',bootSystem:'启动系统',reboot:'重启',target:'目标',download:'下载备份',ramBoot:'内存启动',uploadBoot:'上传并启动',rebuild:'重建 UBI',partitionWrite:'分区写入',restoreAll:'恢复整片 Flash',restoreAllHint:'从 Flash 开头恢复主数据 .bin，包含引导程序和板级数据。坏块保留原偏移，不包含 OOB。文件不能超过 Flash 容量。',flashTooLarge:'文件超过 Flash 容量',clearBadBlocks:'清除坏块标记',clearBadBlocksHint:'擦除整片 NAND 闪存，包括出厂标记的坏块。所有数据将丢失。',scrubConfirm1:'此操作将清除所有坏块标记并擦除全部数据！\n\n点击"确定"后，请在 5 秒内再次点击按钮以确认。',scrubConfirm2:'再次点击以执行清除坏块操作！',uploadWrite:'上传并写入',environment:'环境变量',save:'保存',console:'命令控制台',execute:'执行',serial:'返回串口',cancel:'取消传输',idle:'就绪',upload:'上传中',downloadPhase:'下载中',queued:'等待执行',working:'正在处理',done:'完成',error:'操作失败',erase:'擦除中',create:'创建卷',ready:'上传完成','backup-ready':'备份已就绪',verify:'校验中',write:'写入中',waiting:'等待设备响应',busy:'设备正在处理其他操作',choose:'请选择文件',failed:'请求失败',cancelled:'传输已取消',whole:'整片 Flash',mtdHint:'MTD 备份为物理主数据，坏块填充 FF；NAND OOB 不包含在文件中。',volumeHint:'UBI 卷数据',taskChanged:'设备任务已变化，请刷新页面',network:'连接中断，请检查设备状态'},
-en:{bl2Title:'Flash BL2',ubiOperations:'UBI operations',firstInstall:'Install a TYFZA1 sysupgrade image directly. Rebuilding UBI erases system data and attempts to preserve local factory data.',boardData:'Board data',ubootTitle:'Flash U-Boot',model:'Model',version:'Version',flash:'Flash',backup:'Backup',advanced:'Advanced',install:'Install system',uploadFlash:'Upload and flash',bootSystem:'Boot system',reboot:'Reboot',target:'Target',download:'Download backup',ramBoot:'RAM boot',uploadBoot:'Upload and boot',rebuild:'Rebuild UBI',partitionWrite:'Write partition',restoreAll:'Restore entire Flash',restoreAllHint:'Restores a main-area .bin from offset 0, including bootloader and board data. Bad-block offsets stay in place; OOB is not included. The file must fit in Flash.',flashTooLarge:'File exceeds Flash capacity',clearBadBlocks:'Clear bad block markers',clearBadBlocksHint:'Erases the entire NAND chip including factory bad blocks. All data will be lost.',scrubConfirm1:'This will clear all bad block markers and erase all data!\n\nClick OK, then click the button again within 5 seconds to confirm.',scrubConfirm2:'Click again to execute scrub!',uploadWrite:'Upload and write',environment:'Environment',save:'Save',console:'Command console',execute:'Run',serial:'Return to serial',cancel:'Cancel transfer',idle:'Ready',upload:'Uploading',downloadPhase:'Downloading',queued:'Queued',working:'Working',done:'Complete',error:'Operation failed',erase:'Erasing',create:'Creating volumes',ready:'Upload complete','backup-ready':'Backup ready',verify:'Verifying',write:'Writing',waiting:'Waiting for device',busy:'Device is busy',choose:'Select a file',failed:'Request failed',cancelled:'Transfer cancelled',whole:'Entire Flash',mtdHint:'MTD backup contains physical main-area data with bad blocks padded with FF. NAND OOB is excluded.',volumeHint:'UBI volume data',taskChanged:'Device task changed; refresh the page',network:'Connection lost; check device status'}
+zh:{bl2Title:'刷写 BL2',ubiOperations:'UBI 操作',firstInstall:'可直接刷写 TYFZA1 sysupgrade。重建 UBI 会清空系统数据，并尝试保留本机出厂数据。',boardData:'板级数据',ubootTitle:'刷写 U-Boot',model:'机型',version:'版本',flash:'刷机',backup:'备份',advanced:'高级',install:'刷写系统',uploadFlash:'上传并刷写',bootSystem:'启动系统',reboot:'重启',target:'目标',download:'下载备份',ramBoot:'内存启动',uploadBoot:'上传并启动',rebuild:'重建 UBI',partitionWrite:'分区写入',restoreAll:'恢复整片 Flash',restoreAllHint:'从 Flash 开头恢复主数据 .bin，包含引导程序和板级数据。按段写入并校验，最后更新引导区。坏块保留原偏移，不包含 OOB。文件大小必须与 Flash 容量相同。',flashTooLarge:'文件超过 Flash 容量',flashSizeMismatch:'请选择与 Flash 容量相同的完整主数据备份',clearBadBlocks:'清除坏块标记',clearBadBlocksHint:'擦除整片 NAND 闪存，包括出厂标记的坏块。所有数据将丢失。',scrubConfirm1:'此操作将清除所有坏块标记并擦除全部数据！\n\n点击"确定"后，请在 5 秒内再次点击按钮以确认。',scrubConfirm2:'再次点击以执行清除坏块操作！',uploadWrite:'上传并写入',environment:'环境变量',save:'保存',console:'命令控制台',execute:'执行',serial:'返回串口',cancel:'取消传输',idle:'就绪',upload:'上传中',downloadPhase:'下载中',queued:'等待执行',working:'正在处理',done:'完成',error:'操作失败',erase:'擦除中',create:'创建卷',ready:'上传完成','backup-ready':'备份已就绪',verify:'校验中',write:'写入中',waiting:'等待设备响应',busy:'设备正在处理其他操作',choose:'请选择文件',failed:'请求失败',cancelled:'传输已取消',whole:'整片 Flash',mtdHint:'MTD 备份为物理主数据，坏块填充 FF；NAND OOB 不包含在文件中。',volumeHint:'UBI 卷数据',taskChanged:'设备任务已变化，请刷新页面',network:'连接中断，请检查设备状态'},
+en:{bl2Title:'Flash BL2',ubiOperations:'UBI operations',firstInstall:'Install a TYFZA1 sysupgrade image directly. Rebuilding UBI erases system data and attempts to preserve local factory data.',boardData:'Board data',ubootTitle:'Flash U-Boot',model:'Model',version:'Version',flash:'Flash',backup:'Backup',advanced:'Advanced',install:'Install system',uploadFlash:'Upload and flash',bootSystem:'Boot system',reboot:'Reboot',target:'Target',download:'Download backup',ramBoot:'RAM boot',uploadBoot:'Upload and boot',rebuild:'Rebuild UBI',partitionWrite:'Write partition',restoreAll:'Restore entire Flash',restoreAllHint:'Restores a main-area .bin from offset 0, including bootloader and board data. Chunks are written and verified before updating boot. Bad-block offsets stay in place; OOB is excluded. The file must match Flash capacity.',flashTooLarge:'File exceeds Flash capacity',flashSizeMismatch:'Select a complete main-area backup matching Flash capacity',clearBadBlocks:'Clear bad block markers',clearBadBlocksHint:'Erases the entire NAND chip including factory bad blocks. All data will be lost.',scrubConfirm1:'This will clear all bad block markers and erase all data!\n\nClick OK, then click the button again within 5 seconds to confirm.',scrubConfirm2:'Click again to execute scrub!',uploadWrite:'Upload and write',environment:'Environment',save:'Save',console:'Command console',execute:'Run',serial:'Return to serial',cancel:'Cancel transfer',idle:'Ready',upload:'Uploading',downloadPhase:'Downloading',queued:'Queued',working:'Working',done:'Complete',error:'Operation failed',erase:'Erasing',create:'Creating volumes',ready:'Upload complete','backup-ready':'Backup ready',verify:'Verifying',write:'Writing',waiting:'Waiting for device',busy:'Device is busy',choose:'Select a file',failed:'Request failed',cancelled:'Transfer cancelled',whole:'Entire Flash',mtdHint:'MTD backup contains physical main-area data with bad blocks padded with FF. NAND OOB is excluded.',volumeHint:'UBI volume data',taskChanged:'Device task changed; refresh the page',network:'Connection lost; check device status'}
 };
 let language=(navigator.language||'').toLowerCase().startsWith('zh')?'zh':'en', localBusy=false, remoteBusy=true, activeXHR=null, targets=[], flashBytes=0, selectedTab='flash', rebooting=false;
+let activeRestore=0,serverRestore=0,cancelRestore=false;
 const el=id=>document.getElementById(id), t=key=>words[language][key]||key, text=(id,value)=>{el(id).textContent=value};
 function applyLanguage(){
  document.documentElement.lang=language==='zh'?'zh-CN':'en';
@@ -104,8 +105,8 @@ function applyLanguage(){
 }
 function bytes(n){return n>=1048576?(n/1048576).toFixed(1)+' MiB':n>=1024?(n/1024).toFixed(1)+' KiB':n+' B'}
 function controls(){
- document.querySelectorAll('button,input,select').forEach(e=>{e.disabled=localBusy||remoteBusy});
- el('cancel').disabled=false;el('cancel').hidden=!activeXHR;
+ document.querySelectorAll('button,input,select').forEach(e=>{e.disabled=localBusy||remoteBusy||Boolean(serverRestore&&!activeRestore)});
+ el('cancel').disabled=false;el('cancel').hidden=!activeXHR&&!serverRestore&&!activeRestore;
 }
 function tab(name){selectedTab=name;['flash','backup','advanced'].forEach(n=>{el(n).hidden=n!==name;document.querySelector('[data-tab="'+n+'"]').classList.toggle('active',n===name)})}
 function hint(){const v=targets[Number(el('backupTarget').value)];text('backupHint',v?t(v.kind==='mtd'?'mtdHint':'volumeHint'):'')}
@@ -153,7 +154,7 @@ async function refresh(){
  document.querySelector('[data-tab="flash"]').hidden=!(hasBl2||d.ubi);
  if(!hasBl2&&!d.ubi&&selectedTab==='flash')tab('backup');catalog();
 }
-function status(s){remoteBusy=s.busy;text('state',t(s.phase==='download'?'downloadPhase':s.phase));text('output',s.output||'');controls()}
+function status(s){remoteBusy=s.busy;serverRestore=s.restore_active?s.restore_id:0;text('state',t(s.phase==='download'?'downloadPhase':s.phase));text('output',s.output||'');controls()}
 async function waitTask(id){
  let misses=0;
  for(;;){
@@ -172,7 +173,7 @@ async function task(payload){
 function transfer(url,body,responseType,progressBase=0,progressTotal=0){
  return new Promise((resolve,reject)=>{
   const xhr=new XMLHttpRequest();activeXHR=xhr;controls();
-  const started=performance.now();el('progress').hidden=false;el('progress').value=0;
+  const started=performance.now();el('progress').hidden=false;el('progress').value=progressTotal?100*progressBase/progressTotal:0;
   xhr.open(body?'POST':'GET',url);xhr.responseType=responseType;
   const onprogress=e=>{
    const loaded=progressBase+e.loaded;const total=progressTotal||(e.lengthComputable?e.total:0);const seconds=Math.max(.01,(performance.now()-started)/1000);
@@ -200,7 +201,7 @@ async function run(fn){
  catch(e){rebooting=false;text('state',t('error'));text('output',e.message)}
  finally{
   localBusy=false;
-  try{remoteBusy=(await request('/api/task')).busy}catch(e){remoteBusy=true}
+  try{const s=await request('/api/task');remoteBusy=s.busy;serverRestore=s.restore_active?s.restore_id:0}catch(e){remoteBusy=true}
   controls();
  }
 }
@@ -208,7 +209,11 @@ document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>tab(b.dataset.t
 el('language').onclick=()=>{
  language=language==='zh'?'en':'zh';applyLanguage();
 };
-el('cancel').onclick=()=>activeXHR?.abort();
+el('cancel').onclick=()=>{
+ if(activeXHR){activeXHR.abort();return}
+ if(localBusy&&(activeRestore||serverRestore)){cancelRestore=true;return}
+ if(serverRestore)run(()=>task({operation:'restore-cancel',restore_id:serverRestore}));
+};
 el('backupTarget').onchange=hint;
 el('bl2Button').onclick=()=>run(async()=>{
  await task({operation:'flash-bl2',upload_id:await upload('preloader')});
@@ -224,8 +229,24 @@ el('writeButton').onclick=()=>run(async()=>{
 });
 el('allFlashButton').onclick=()=>run(async()=>{
  const file=el('allFlashImage').files[0];if(!file)throw new Error(t('choose'));
- if(file.size>flashBytes)throw new Error(t('flashTooLarge'));
- await task({operation:'flash-all',upload_id:await uploadFile(el('allFlashImage'),'/api/upload-all-flash')});
+ if(file.size!==flashBytes)throw new Error(t('flashSizeMismatch'));
+ cancelRestore=false;
+ try{
+  const header=await transfer('/api/upload',file.slice(0,2*1024*1024),'json',0,file.size);
+  const started=await task({operation:'restore-start',total:file.size,upload_id:header.upload_id});
+  activeRestore=started.restore_id;if(!activeRestore)throw new Error(t('failed'));
+  const segment=4*1024*1024;
+  for(let offset=started.restore_offset;offset<file.size;offset+=segment){
+   if(cancelRestore)throw new Error(t('cancelled'));
+   const upload=await transfer('/api/upload',file.slice(offset,offset+segment),'json',offset,file.size);
+   await task({operation:'restore-chunk',restore_id:activeRestore,offset,upload_id:upload.upload_id});
+  }
+  if(cancelRestore)throw new Error(t('cancelled'));
+  await task({operation:'restore-finish',restore_id:activeRestore});activeRestore=0;
+ }finally{
+  if(activeRestore){try{await task({operation:'restore-cancel',restore_id:activeRestore})}catch(e){}}
+  activeRestore=0;cancelRestore=false;
+ }
 });
 el('rebuildButton').onclick=()=>run(async()=>{
  await task({operation:'ubi-rebuild'});

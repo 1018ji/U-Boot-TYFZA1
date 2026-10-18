@@ -27,6 +27,7 @@ static struct mm_region tyfza1_mem_map[] = {
 	{ 0 }
 };
 struct mm_region *mem_map = tyfza1_mem_map;
+static u32 original_xram[0x2000 / sizeof(u32)];
 
 int print_cpuinfo(void)
 {
@@ -55,8 +56,23 @@ int dram_init_banksize(void)
 
 int board_init(void)
 {
+	unsigned int i;
+	extern void ca77xx_eth_change_default(void);
 	writel(1, 0xf4321000);
+	for (i = 0; i < ARRAY_SIZE(original_xram); i++)
+		original_xram[i] = readl(0xf4500000 + i * 4);
+	ca77xx_eth_change_default();
 	return 0;
+}
+
+void board_preboot_os(void)
+{
+	unsigned int i;
+	/* Match the stock handoff: stop all NI MACs and return XRAM to its entry state. */
+	for (i = 0; i < 6; i++)
+		clrbits_le32(0xf430a5c8 + i * 0x90, 1);
+	for (i = 0; i < ARRAY_SIZE(original_xram); i++)
+		writel(original_xram[i], 0xf4500000 + i * 4);
 }
 
 int board_late_init(void)

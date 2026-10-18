@@ -8,6 +8,8 @@
 #define TYF_FIP_SIZE 0xc0000U
 #define TYF_FIP0_OFFSET 0x40000U
 #define TYF_FIP1_OFFSET 0x100000U
+#define TYF_BUNDLE_MAGIC "TYFZA1-UBOOT-V1"
+#define TYF_BUNDLE_HEADER 16U
 
 struct tyf_payload {
 	const unsigned char *data;
@@ -24,5 +26,9 @@ struct tyf_firmware {
 
 int tyf_parse_fip(const void *data, size_t size, struct tyf_fip *out);
 int tyf_parse_loader(const void *data, size_t size, struct tyf_fip *out);
+int tyf_select_loader(const void *data, size_t size, const char *variant,
+		      struct tyf_payload *out);
+int tyf_loader_preserves_device(const void *next, size_t next_size,
+			       const void *current, size_t current_size);
 int tyf_parse_sysupgrade(const void *data, size_t size, struct tyf_firmware *out);
 #endif

@@ -1,0 +1,41 @@
+{
+  "scope": "Actual U-Boot initialization compared event-for-event with original ARM64 OEM functions; PHY bus and timers simulated",
+  "module_sha256": "0ba23162b42e457b0628b0899e89883198aac919a14ddab91997fd9ef5710652",
+  "runs": [
+    {
+      "revision": 8,
+      "patch_version": 0,
+      "seed": 0,
+      "events": 1093,
+      "trace_sha256": "e376455bbe755c9556785620adbdfa477147c1e4954404caaa2f0ed9b033bd81"
+    },
+    {
+      "revision": 8,
+      "patch_version": 0,
+      "seed": 42405,
+      "events": 1093,
+      "trace_sha256": "9161f51e795a9ae656317d7999ec6c9d5c00c64e6ab02f25675d17b9b3ee31c5"
+    },
+    {
+      "revision": 8,
+      "patch_version": 32,
+      "seed": 42405,
+      "events": 19,
+      "trace_sha256": "6bc3d98abe9ca8444111a11bc82f47137bd42a068d7832b4bd1d0db49bdeeaf8"
+    },
+    {
+      "revision": 9,
+      "patch_version": 0,
+      "seed": 42405,
+      "events": 19,
+      "trace_sha256": "f60ec84a743d1ca0bf05cab110e1f36e78c6f5902d6bf855fc118ef03ec2c0f0"
+    },
+    {
+      "revision": 10,
+      "patch_version": 0,
+      "seed": 42405,
+      "events": 19,
+      "trace_sha256": "fe78474eecb2d0e8c65d9659dbb5cf205dd04700c866655204529702a81d4ede"
+    }
+  ]
+}

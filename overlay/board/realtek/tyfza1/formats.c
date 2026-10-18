@@ -70,6 +70,49 @@ int tyf_parse_loader(const void *data, size_t size, struct tyf_fip *out)
 	return 0;
 }
 
+int tyf_loader_preserves_device(const void *next_data, size_t next_size,
+			       const void *current_data, size_t current_size)
+{
+	const unsigned char *next = next_data, *current = current_data;
+	const size_t offsets[] = { TYF_FIP0_OFFSET, TYF_FIP1_OFFSET };
+	struct tyf_fip image, old;
+	unsigned int i, matched = 0;
+	if (current_size != TYF_BOOT_SIZE || tyf_parse_loader(next, next_size, &image) ||
+	    memcmp(current, next, TYF_FIP0_OFFSET) ||
+	    memcmp(current + 0x1c0000, next + 0x1c0000, 0x40000)) return -1;
+	/* An interrupted update may leave old/new BL33s or one invalid ToC. */
+	for (i = 0; i < 2; i++) {
+		if (tyf_parse_fip(current + offsets[i], TYF_FIP_SIZE, &old)) continue;
+		if (old.bl2.size != image.bl2.size || old.bl31.size != image.bl31.size ||
+		    memcmp(old.bl2.data, image.bl2.data, old.bl2.size) ||
+		    memcmp(old.bl31.data, image.bl31.data, old.bl31.size)) continue;
+		matched++;
+	}
+	return matched ? 0 : -1;
+}
+
+int tyf_select_loader(const void *data, size_t size, const char *variant,
+		      struct tyf_payload *out)
+{
+	const unsigned char *p = data;
+	struct tyf_fip image;
+	unsigned int index;
+	memset(out, 0, sizeof(*out));
+	if (!variant || (strcmp(variant, "4ge") && strcmp(variant, "2p5g"))) return -1;
+	if (size == TYF_BOOT_SIZE) {
+		out->data = p;
+	} else {
+		if (size != TYF_BUNDLE_HEADER + 2 * TYF_BOOT_SIZE ||
+		    memcmp(p, TYF_BUNDLE_MAGIC, TYF_BUNDLE_HEADER)) return -1;
+		for (index = 0; index < 2; index++)
+			if (tyf_parse_loader(p + TYF_BUNDLE_HEADER + index * TYF_BOOT_SIZE,
+					     TYF_BOOT_SIZE, &image)) return -1;
+		out->data = p + TYF_BUNDLE_HEADER + (!strcmp(variant, "2p5g") ? TYF_BOOT_SIZE : 0);
+	}
+	out->size = TYF_BOOT_SIZE;
+	return tyf_parse_loader(out->data, out->size, &image);
+}
+
 static int octal(const unsigned char *p, size_t size, uint64_t *value)
 {
 	size_t i = 0;

@@ -1,0 +1,40 @@
+{
+  "scope": "Actual browser frontend with in-page write API fixtures; no device access",
+  "results": [
+    {
+      "case": "success",
+      "uploads": 65,
+      "largest_upload": 4194304,
+      "task_count": 66,
+      "last_task": "restore-finish"
+    },
+    {
+      "case": "upload-fail",
+      "uploads": 3,
+      "largest_upload": 4194304,
+      "task_count": 3,
+      "last_task": "restore-cancel"
+    },
+    {
+      "case": "write-fail",
+      "uploads": 4,
+      "largest_upload": 4194304,
+      "task_count": 5,
+      "last_task": "restore-cancel"
+    },
+    {
+      "case": "cancel",
+      "uploads": 2,
+      "largest_upload": 4194304,
+      "task_count": 3,
+      "last_task": "restore-cancel"
+    },
+    {
+      "case": "wrong-size",
+      "uploads": 0,
+      "largest_upload": 0,
+      "task_count": 0,
+      "last_task": null
+    }
+  ]
+}

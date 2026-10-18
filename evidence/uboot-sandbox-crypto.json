@@ -1,0 +1,33 @@
+{
+  "scope": "Actual U-Boot sandbox executable uses production certificate parser, U-Boot RSA public-key parser/software exponentiation/PSS and SHA256; no Taurus NAND tested",
+  "runs": [
+    {
+      "case": "4ge",
+      "input_sha256": "6e47740b0bcbf0ddfcb0e24d805097463aba7498b3f3f9298af7408783c95fe9",
+      "returncode": 0,
+      "stdout": "Bloblist at 100 not found (err=-2)\n\n\nU-Boot 2026.07 (Oct 18 2026 - 15:27:28 +0800)\n\nModel: TYFZA1 certificate test sandbox\nDRAM:  256 MiB\nCore:  8 devices, 6 uclasses, devicetree: board\nMMC:   \nLoading Environment from nowhere... OK\nIn:    serial\nOut:   serial\nErr:   serial\n2097152 bytes read in 0 ms\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nTYF CERT OK (0)\n",
+      "stderr": ""
+    },
+    {
+      "case": "2p5g",
+      "input_sha256": "2e599357666f36f10554bbc7fcd0007cd333f474b1e14aaec9e6ea759350a77b",
+      "returncode": 0,
+      "stdout": "Bloblist at 100 not found (err=-2)\n\n\nU-Boot 2026.07 (Oct 18 2026 - 15:27:28 +0800)\n\nModel: TYFZA1 certificate test sandbox\nDRAM:  256 MiB\nCore:  8 devices, 6 uclasses, devicetree: board\nMMC:   \nLoading Environment from nowhere... OK\nIn:    serial\nOut:   serial\nErr:   serial\n2097152 bytes read in 0 ms\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nTYF CERT OK (0)\n",
+      "stderr": ""
+    },
+    {
+      "case": "corrupt-bl33",
+      "input_sha256": "7892ffbf80d52d6514bc26cb0d706272c5fc3295dda9253fa1fa908855a33794",
+      "returncode": 1,
+      "stdout": "Bloblist at 100 not found (err=-2)\n\n\nU-Boot 2026.07 (Oct 18 2026 - 15:27:28 +0800)\n\nModel: TYFZA1 certificate test sandbox\nDRAM:  256 MiB\nCore:  8 devices, 6 uclasses, devicetree: board\nMMC:   \nLoading Environment from nowhere... OK\nIn:    serial\nOut:   serial\nErr:   serial\n2097152 bytes read in 0 ms\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nTYF CERT REJECT (-1)\n",
+      "stderr": ""
+    },
+    {
+      "case": "corrupt-nt_cert",
+      "input_sha256": "cc4e9bfd53a4e48f75e4cfe4e4833bd3294fd7cfb0565fe6b9d580cd6cc8ab06",
+      "returncode": 1,
+      "stdout": "Bloblist at 100 not found (err=-2)\n\n\nU-Boot 2026.07 (Oct 18 2026 - 15:27:28 +0800)\n\nModel: TYFZA1 certificate test sandbox\nDRAM:  256 MiB\nCore:  8 devices, 6 uclasses, devicetree: board\nMMC:   \nLoading Environment from nowhere... OK\nIn:    serial\nOut:   serial\nErr:   serial\n2097152 bytes read in 0 ms\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nRSA backend result 0 key 270\nRSA backend result 0 key 270\npadding_pss_verify: invalid pss padding (0xbc is missing)\nRSA backend result -22 key 270\nTYF CERT REJECT (-1)\n",
+      "stderr": ""
+    }
+  ]
+}

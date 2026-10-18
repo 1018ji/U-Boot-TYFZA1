@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/dts-v1/;
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+	model = "TYFZA1 certificate test sandbox";
+	compatible = "sandbox";
+	binman {};
+	aliases { serial0 = &serial; };
+	chosen { stdout-path = "serial0"; };
+	memory { device_type = "memory"; reg = <0 0x10000000>; };
+	serial: serial { compatible = "sandbox,serial"; bootph-all; };
+	timer { compatible = "sandbox,timer"; clock-frequency = <1000000>; bootph-all; };
+};

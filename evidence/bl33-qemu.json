@@ -1,0 +1,59 @@
+{
+  "scope": "Real AArch64 relocation, LZMA decoder, integrity checks and EL2 handoff on QEMU virt; no Taurus drivers or hardware tested",
+  "image": {
+    "plain_bytes": 551920,
+    "plain_sha256": "ff515ca6f99939b492860e668c1dcf05bac2b24c575d71a1a893f36b80938934",
+    "lzma_bytes": 222070,
+    "bl33_bytes": 229024,
+    "bl33_sha256": "0fc5e89aac72b69563f98217be6387ce72b6a3bd522ca32828dc242b37cff227",
+    "run_address": "0x41000000",
+    "relocation_address": "0x48000000",
+    "stack_top": "0x4f000000",
+    "workspace_end": "0x48047ea0",
+    "qemu_fixture": true
+  },
+  "runs": [
+    {
+      "case": "corrupt-body",
+      "returncode": 1,
+      "stdout": "TYFZA1: BL33 loader started\nTYFZA1: BL33 integrity/decompression failed\n",
+      "stderr": ""
+    },
+    {
+      "case": "corrupt-properties",
+      "returncode": 1,
+      "stdout": "TYFZA1: BL33 loader started\nTYFZA1: BL33 integrity/decompression failed\n",
+      "stderr": ""
+    },
+    {
+      "case": "already-relocated",
+      "returncode": 0,
+      "stdout": "TYFZA1: BL33 loader started\nTYFZA1: BL33 decompressed and verified\nBL33 PAYLOAD AND X0-X3/EL2 HANDOFF PASS\n",
+      "stderr": ""
+    },
+    {
+      "case": "wrong-uncompressed-length",
+      "returncode": 1,
+      "stdout": "TYFZA1: BL33 loader started\nTYFZA1: BL33 integrity/decompression failed\n",
+      "stderr": ""
+    },
+    {
+      "case": "relocate-from-different-address",
+      "returncode": 0,
+      "stdout": "TYFZA1: BL33 loader started\nTYFZA1: BL33 decompressed and verified\nBL33 PAYLOAD AND X0-X3/EL2 HANDOFF PASS\n",
+      "stderr": ""
+    },
+    {
+      "case": "alignment-check-enabled",
+      "returncode": 0,
+      "stdout": "TYFZA1: BL33 loader started\nTYFZA1: BL33 decompressed and verified\nBL33 PAYLOAD AND X0-X3/EL2 HANDOFF PASS\n",
+      "stderr": ""
+    },
+    {
+      "case": "valid-stream-wrong-output-crc",
+      "returncode": 1,
+      "stdout": "TYFZA1: BL33 loader started\nTYFZA1: BL33 integrity/decompression failed\n",
+      "stderr": ""
+    }
+  ]
+}

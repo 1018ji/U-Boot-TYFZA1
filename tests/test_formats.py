@@ -77,6 +77,10 @@ class FormatsTests(unittest.TestCase):
             fn = getattr(cls.lib, "tyf_parse_" + name)
             fn.argtypes = [C.c_void_p, C.c_size_t, C.POINTER(typ)]
             fn.restype = C.c_int
+        cls.lib.tyf_loader_preserves_device.argtypes = [C.c_void_p, C.c_size_t, C.c_void_p, C.c_size_t]
+        cls.lib.tyf_loader_preserves_device.restype = C.c_int
+        cls.lib.tyf_select_loader.argtypes = [C.c_void_p, C.c_size_t, C.c_char_p, C.POINTER(Payload)]
+        cls.lib.tyf_select_loader.restype = C.c_int
 
     @classmethod
     def tearDownClass(cls):
@@ -113,6 +117,56 @@ class FormatsTests(unittest.TestCase):
     def test_loader_geometry(self):
         for size in (0, 512, 0x1fffff, 0x200001):
             self.assertNotEqual(self.parse("loader", bytes(size))[0], 0)
+
+    def select(self, data, variant):
+        buf = C.create_string_buffer(bytes(data))
+        selected = Payload()
+        ret = self.lib.tyf_select_loader(buf, len(data), variant.encode(), C.byref(selected))
+        return ret, C.string_at(selected.data, selected.size) if ret == 0 else b''
+
+    def test_universal_board_selection(self):
+        first, second = loader(), loader()
+        for offset in (0x40000, 0x100000):
+            second[offset + len(fip()) - 1] ^= 0x12
+        bundle = b'TYFZA1-UBOOT-V1\0' + first + second
+        self.assertEqual(self.select(bundle, '4ge'), (0, bytes(first)))
+        self.assertEqual(self.select(bundle, '2p5g'), (0, bytes(second)))
+        self.assertNotEqual(self.select(bundle, 'unknown')[0], 0)
+        self.assertEqual(self.select(first, '4ge'), (0, bytes(first)))
+
+    def test_universal_rejects_corrupt_header_or_either_image(self):
+        bundle = bytearray(b'TYFZA1-UBOOT-V1\0') + loader() + loader()
+        for offset in (0, 16 + 512, 16 + 0x200000 + 512):
+            damaged = bundle.copy(); damaged[offset] ^= 1
+            for variant in ('4ge', '2p5g'):
+                self.assertNotEqual(self.select(damaged, variant)[0], 0)
+        self.assertNotEqual(self.select(bundle[:-1], '4ge')[0], 0)
+
+    def preserves(self, next_image, current):
+        a, b = C.create_string_buffer(bytes(next_image)), C.create_string_buffer(bytes(current))
+        return self.lib.tyf_loader_preserves_device(a, len(next_image), b, len(current))
+
+    def test_repair_different_bl33_copies(self):
+        next_image, current = loader(), loader()
+        current[0x100000 + len(fip()) - 1] ^= 1
+        self.assertEqual(self.preserves(next_image, current), 0)
+
+    def test_repair_one_corrupt_copy(self):
+        for off in (0x40000, 0x100000):
+            current = loader(); current[off] ^= 1
+            self.assertEqual(self.preserves(loader(), current), 0)
+            current = loader(); current[off + 176] ^= 1
+            self.assertEqual(self.preserves(loader(), current), 0)
+
+    def test_reject_no_matching_early_firmware(self):
+        current = loader()
+        for off in (0x40000, 0x100000): current[off + 176] ^= 1
+        self.assertNotEqual(self.preserves(loader(), current), 0)
+
+    def test_reject_modified_boot_layout(self):
+        for off in (0x1000, 0x1d0000):
+            current = loader(); current[off] ^= 1
+            self.assertNotEqual(self.preserves(loader(), current), 0)
 
     def test_both_board_archives(self):
         for board in ("tianyi_tyfza1", "tianyi_tyfza1-2p5g"):
