@@ -41,10 +41,24 @@ static int rtl8221b_update(struct phy_device *phydev, int mmd, u16 reg,
 
 static int rtl8221b_wait_ready(struct phy_device *phydev)
 {
-	int val;
+	int val, ret;
 
-	return phy_read_mmd_poll_timeout(phydev, MDIO_MMD_VEND2, 0xa420,
+	ret = phy_read_mmd_poll_timeout(phydev, MDIO_MMD_VEND2, 0xa420,
 					val, (val & 3) == 3, 1000, 100000, false);
+	if (ret < 0)
+		phydev_err(phydev, "ready wait failed: MMD31:a420=%04x, error=%d\n", val, ret);
+	return ret;
+}
+
+static int rtl8221b_check_bits(struct phy_device *phydev, int mmd, u16 reg,
+			       u16 mask, u16 expected)
+{
+	int value = phy_read_mmd(phydev, mmd, reg);
+	if (value < 0) return value;
+	if ((value & mask) == expected) return 0;
+	phydev_err(phydev, "readback mismatch: MMD%d:%04x=%04x, mask=%04x expected=%04x\n",
+		   mmd, reg, value, mask, expected);
+	return -EIO;
 }
 
 static int rtl8221b_load_patch(struct phy_device *phydev)
@@ -174,36 +188,51 @@ static int rtl8221b_hsgmii(struct phy_device *phydev)
 	ret = phy_read_mmd_poll_timeout(phydev, MDIO_MMD_VEND2, 0xa434,
 					val, val & BIT(2), 100000, 10000000, false);
 	release = rtl8221b_update(phydev, MDIO_MMD_VEND2, 0xa400, BIT(14), 0);
-	if (release < 0)
+	if (release < 0) {
 		phydev_err(phydev, "HiSGMII force-down release failed: %d\n", release);
-	/* The OEM returns success on this timeout. A failed latch must fail attach. */
-	return ret < 0 ? ret : release;
+		return release;
+	}
+	if (ret < 0 && ret != -ETIMEDOUT) return ret;
+	/* OEM 0x3fd0..0x409c releases the request even if this status never asserts.
+	 * Its timeout alone is not a failed mode write. Require register evidence. */
+	if (ret == -ETIMEDOUT)
+		phydev_err(phydev, "SerDes status wait elapsed: a434=%04x; verifying mode registers\n", val);
+	ret = rtl8221b_check_bits(phydev, MDIO_MMD_VEND2, 0xa400, BIT(14), 0);
+	if (ret) return ret;
+	ret = rtl8221b_check_bits(phydev, MDIO_MMD_VEND1, 0x75f3, BIT(0), 0);
+	if (ret) return ret;
+	return rtl8221b_check_bits(phydev, MDIO_MMD_VEND1, 0x697a, 0x3f, 1);
 }
 
 static int rtl8221b_tyfza1_config_init(struct phy_device *phydev)
 {
 	int ret;
+	const char *stage = "ready";
 
 	ret = rtl8221b_wait_ready(phydev);
 	if (ret < 0)
 		goto error;
+	stage = "patch";
 	ret = rtl8221b_load_patch(phydev);
 	if (ret < 0)
 		goto error;
 	/* Original init disables the copper PHY before changing its SerDes mode.
 	 * phylib's resume callback enables it after a successful attach. */
+	stage = "copper suspend";
 	ret = rtl8221b_update(phydev, MDIO_MMD_PMAPMD, MDIO_CTRL1, 0, MDIO_CTRL1_LPOWER);
 	if (ret < 0)
 		goto error;
+	stage = "LED";
 	ret = phy_write_mmd(phydev, MDIO_MMD_VEND2, 0xd032, 0x00a7);
 	if (ret < 0)
 		goto error;
+	stage = "HiSGMII";
 	ret = rtl8221b_hsgmii(phydev);
 	if (ret < 0)
 		goto error;
 	return 0;
 error:
-	phydev_err(phydev, "TYFZA1 cold initialization failed: %d\n", ret);
+	phydev_err(phydev, "TYFZA1 cold initialization failed at %s: %d\n", stage, ret);
 	return ret;
 }
 

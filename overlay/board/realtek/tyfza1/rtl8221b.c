@@ -13,6 +13,20 @@
 })
 #include "rtl8221b-init.h"
 
+static int rtl8221b_read_mmd(struct phy_device *phy, int devad, int reg)
+{
+	if (!phy->is_c45 || devad < 0 || devad > 31 || reg < 0 || reg > 0xffff)
+		return -EINVAL;
+	return phy_read(phy, devad, reg);
+}
+
+static int rtl8221b_write_mmd(struct phy_device *phy, int devad, int reg, u16 value)
+{
+	if (!phy->is_c45 || devad < 0 || devad > 31 || reg < 0 || reg > 0xffff)
+		return -EINVAL;
+	return phy_write(phy, devad, reg, value);
+}
+
 static int rtl8221b_config(struct phy_device *phy)
 {
 	int ret, value;
@@ -30,8 +44,15 @@ static int rtl8221b_config(struct phy_device *phy)
 	if (ret) return ret;
 	value = phy_read_mmd(phy, MDIO_MMD_AN, MDIO_CTRL1);
 	if (value < 0) return value;
-	return phy_write_mmd(phy, MDIO_MMD_AN, MDIO_CTRL1,
-			     value | MDIO_AN_CTRL1_ENABLE | MDIO_AN_CTRL1_RESTART);
+	ret = phy_write_mmd(phy, MDIO_MMD_AN, MDIO_CTRL1,
+			    value | MDIO_AN_CTRL1_ENABLE | MDIO_AN_CTRL1_RESTART);
+	if (ret) return ret;
+	ret = rtl8221b_wait_ready(phy);
+	if (ret) return ret;
+	ret = rtl8221b_check_bits(phy, MDIO_MMD_PMAPMD, MDIO_CTRL1, MDIO_CTRL1_LPOWER, 0);
+	if (ret) return ret;
+	puts("RTL8221B: HiSGMII mode read back; copper enabled, waiting for LAN link\n");
+	return 0;
 }
 
 static int rtl8221b_startup(struct phy_device *phy)
@@ -66,6 +87,9 @@ U_BOOT_PHY_DRIVER(tyfza1_rtl8221b) = {
 	.mmds = BIT(MDIO_MMD_PMAPMD) | BIT(MDIO_MMD_PCS) | BIT(MDIO_MMD_AN) |
 		BIT(MDIO_MMD_VEND1) | BIT(MDIO_MMD_VEND2),
 	.config = rtl8221b_config,
+	/* Generic MMD access in this U-Boot assumes only 10G PHYs use Clause45. */
+	.read_mmd = rtl8221b_read_mmd,
+	.write_mmd = rtl8221b_write_mmd,
 	.startup = rtl8221b_startup,
 	.shutdown = genphy_shutdown,
 };

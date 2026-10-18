@@ -23,7 +23,8 @@ def package(directory):
     payload = gzip.compress(archive.getvalue(), mtime=0)
     header = (ROOT / 'scripts/install_uboot.sh').read_text()
     header = header.replace('@PAYLOAD_LINE@', str(header.count('\n') + 1))
-    header = header.replace('@PAYLOAD_SHA256@', hashlib.sha256(payload).hexdigest())
+    # Stock BusyBox provides MD5 for transfer checks; the flasher verifies loaders with SHA-256.
+    header = header.replace('@PAYLOAD_MD5@', hashlib.md5(payload, usedforsecurity=False).hexdigest())
     output = directory / 'tyfza1-uboot-install.run'
     output.write_bytes(header.encode() + payload)
     output.chmod(0o755)

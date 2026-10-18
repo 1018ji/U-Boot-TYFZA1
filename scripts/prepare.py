@@ -65,12 +65,18 @@ def main():
     replace(board / "vendor/eth_ni.c", "cmdtp->help", "cmdtp->usage")
     replace(board / "vendor/eth_ni.c", "\tif (result != CA_E_OK)\n\t\tvalue = result;", "\tif (result != CA_E_OK)\n\t\treturn result;")
     replace(board / "vendor/eth_ni.c", "\taddr &= 0x1f;\n\n\tif (devad == MDIO_DEVAD_NONE)\n\t\tresult =", "\taddr &= 0x1f;\n\tif (addr == 7 && devad == MDIO_DEVAD_NONE) return 0xffff;\n\n\tif (devad == MDIO_DEVAD_NONE)\n\t\tresult =")
+    ni = board / "vendor/eth_ni.c"
+    text = ni.read_text()
+    begin = text.index("static ca_status_t __ca_mdio_c45_write", text.index("static struct phy_device *__get_curr_phydev"))
+    end = text.index("static int cortina_ni_start", begin)
+    ni.write_text(text[:begin] + '#include "../mdio.inc"\n\n' + text[end:])
     replace(board / "vendor/eth_ni.c", "static int cortina_ni_start(struct udevice *dev)", '#include "../ni-board.inc"\n\nstatic int cortina_ni_start(struct udevice *dev)')
     replace(board / "vendor/eth_ni.c", "static void ni_auto_scan_active_port", "static int tyf_ni_phy_status(struct phy_device *phy);\n\nstatic void ni_auto_scan_active_port")
     replace(board / "vendor/eth_ni.c", "\t\tphy_startup(phydev);", "\t\ttyf_ni_phy_status(phydev);")
     replace(board / "vendor/eth_ni.c", "\t\tphy_startup(p);", "\t\ttyf_ni_phy_status(p);")
+    replace(board / "vendor/eth_ni.c", "\t\t\tif (phydev) {\n\t\t\t\tprintf", "\t\t\tif (!phydev) {\n\t\t\t\tprintf(\"Recovery PHY missing: port %d, MDIO %d\\n\", i, m->phy_id);\n\t\t\t\treturn -ENODEV;\n\t\t\t}\n\t\t\tif (phydev) {\n\t\t\t\tprintf")
     replace(board / "vendor/eth_ni.c", '\tprintf("CA NI version 0.9(DM_ETH)\\n");', '\tret = tyf_ni_board_prepare(priv);\n\tif (ret) return ret;\n\tprintf("CA NI version 0.9(DM_ETH)\\n");')
-    replace(board / "vendor/eth_ni.c", "\t\t\t\tphy_config(phydev);\n\n\t\t\t\tval = phy_read", "\t\t\t\tval = phy_config(phydev);\n\t\t\t\tif (val) return val;\n\t\t\t\tif (phydev->is_c45) continue;\n\n\t\t\t\tval = phy_read")
+    replace(board / "vendor/eth_ni.c", "\t\t\t\tphy_config(phydev);\n\n\t\t\t\tval = phy_read", "\t\t\t\tval = phy_config(phydev);\n\t\t\t\tif (val) {\n\t\t\t\t\tprintf(\"Recovery PHY port %d initialization failed (%d).\\n\", i, val);\n\t\t\t\t\treturn val;\n\t\t\t\t}\n\t\t\t\tif (phydev->is_c45) continue;\n\n\t\t\t\tval = phy_read")
     replace(board / "vendor/eth_ni.c", '\t} else\n\t\tprintf("No PHY available\\n");', '\t} else\n\t\tputs("Recovery will wait for a LAN link.\\n");')
     replace(board / "vendor/eth_ni.c", "\t\tpriv->aal_mode_sync(priv->active_port, priv->maps[priv->active_port].sds_mode,\n\t\t\t\t    p);", "\t\tif (priv->active_port == 4 && tyf_ni_port4_speed(p)) return -EIO;\n\t\tif (priv->aal_mode_sync(priv->active_port, priv->maps[priv->active_port].sds_mode, p))\n\t\t\treturn -EIO;")
     replace(board / "vendor/eth_ni.c", "\tni_enable_tx_rx(priv->active_port, 1);", "\tif (is_valid_port(priv, priv->active_port)) ni_enable_tx_rx(priv->active_port, 1);")
@@ -123,6 +129,20 @@ def main():
     page.write_bytes(b"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Encoding: gzip\r\nConnection: close\r\nContent-Length: " + str(len(compressed)).encode() + b"\r\n\r\n" + compressed)
     replace(http, "fs_set_data(file, httpd_page, httpd_page_size);", "fs_set_data(file, httpd_page, httpd_page_size);\n\t\tfile->flags = FS_FILE_FLAGS_HEADER_INCLUDED;")
     replace(http, '#include <net/httpd.h>', '#include <net/httpd.h>\n#include <tyfza1_recovery.h>')
+    replace(http, '"httpd_ipaddr", "httpd_netmask",', '"httpd_ipaddr", "httpd_netmask", "httpd_dhcp",')
+    replace(http, '\tif (httpd_running)\n\t\treturn 0;', '\tif (httpd_running)\n\t\treturn 0;\n\tif (env_get_yesno("httpd_dhcp") == 0) with_dhcp = false;')
+    replace(http, '\t\tret = env_set(env_key, env_value[0] ? env_value : NULL);', '''\t\t/* Accept the familiar IP names as persistent recovery settings, too. */
+\t\tif (!strcmp(env_key, "ipaddr"))
+\t\t\tret = env_set("httpd_ipaddr", env_value[0] ? env_value : NULL);
+\t\telse if (!strcmp(env_key, "netmask"))
+\t\t\tret = env_set("httpd_netmask", env_value[0] ? env_value : NULL);
+\t\telse
+\t\t\tret = 0;
+\t\tif (!ret) ret = env_set(env_key, env_value[0] ? env_value : NULL);''')
+    replace(http, '\t\tif (!ret) ret = env_save();\n\t\tbreak;', '''\t\tif (!ret) ret = env_save();
+\t\tif (!ret && !strcmp(env_key, "httpd_dhcp") && env_get_yesno("httpd_dhcp") == 0)
+\t\t\tuboot_httpd_dhcp_stop();
+\t\tbreak;''')
     replace(http, "\tHTTP_JOB_NAND_SCRUB,", "\tHTTP_JOB_NAND_SCRUB,\n\tHTTP_JOB_TYF_RESTORE,")
     replace(http, 'static const char *phase = "idle";', 'static const char *phase = "idle";\n#if defined(CONFIG_TARGET_TYFZA1)\n#include <net/tyfza1-httpd.inc>\n#endif')
     replace(http, '\tjson_string(&j, output_buf);', '\tjson_string(&j, output_buf);\n#if defined(CONFIG_TARGET_TYFZA1)\n\ttyf_http_restore_info(&j);\n#endif')

@@ -3,6 +3,7 @@
 """Run the packaged shell installer with a harmless flasher at the I/O boundary."""
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -28,16 +29,19 @@ class SingleFileInstallerTests(unittest.TestCase):
             'exit "$TYFZA1_TEST_RESULT"\n')
         (self.directory / 'tyfza1-uboot-universal.bin').write_bytes(b'test loader')
         self.installer = package(self.directory)
-        commands = self.directory / 'commands'
+        commands = self.commands = self.directory / 'commands'
         commands.mkdir()
+        # Match the stock command set, without host mktemp or sha256sum.
+        for name in ['mkdir', 'rm', 'tail', 'md5sum', 'tar', 'gzip']:
+            (commands / name).symlink_to(shutil.which(name))
         (commands / 'id').write_text('#!/bin/sh\nprintf "%s\\n" "$TYFZA1_TEST_UID"\n')
         (commands / 'id').chmod(0o755)
-        self.env = dict(os.environ, PATH=str(commands)+':'+os.environ['PATH'],
+        self.env = dict(os.environ, PATH=str(commands),
                         TYFZA1_TEST_LOG=str(self.log), TYFZA1_TEST_BACKUP=str(self.backup),
                         TYFZA1_TEST_RESULT='0', TYFZA1_TEST_UID='0')
 
     def run_installer(self, *args):
-        return subprocess.run(['sh', str(self.installer), *args], cwd=self.directory,
+        return subprocess.run(['/bin/sh', str(self.installer), *args], cwd=self.directory,
                               env=self.env, capture_output=True, text=True)
 
     def assert_extracted_files_removed(self):
@@ -89,6 +93,28 @@ class SingleFileInstallerTests(unittest.TestCase):
         result = self.run_installer('--invalid')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('Usage:', result.stderr)
+        self.assertFalse(self.log.exists())
+
+    def test_missing_tool_is_reported_before_extraction(self):
+        (self.commands / 'md5sum').unlink()
+        result = self.run_installer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Required command not found: md5sum', result.stderr)
+        self.assertFalse(self.log.exists())
+
+    def test_existing_directory_is_not_used_or_removed(self):
+        occupied = self.directory / 'occupied-path'
+        result = subprocess.run(
+            ['/bin/sh', '-c',
+             'd=/tmp/tyfza1-uboot.$$; mkdir "$d"; '
+             'printf "%s" "$d" > "$1"; printf keep > "$d/marker"; '
+             'exec /bin/sh "$2"', 'test', str(occupied), str(self.installer)],
+            cwd=self.directory, env=self.env, capture_output=True, text=True)
+        directory = Path(occupied.read_text())
+        self.addCleanup(lambda: shutil.rmtree(directory, ignore_errors=True))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Cannot create installer directory', result.stderr)
+        self.assertEqual((directory / 'marker').read_text(), 'keep')
         self.assertFalse(self.log.exists())
 
 

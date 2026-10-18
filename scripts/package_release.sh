@@ -15,6 +15,7 @@ python3 scripts/package_universal.py \
     --output output/release/tyfza1-uboot-universal.bin
 sh scripts/build_flasher.sh output/release/tyfza1-flash-uboot
 cp README.md COPYING VERSION output/release/
-(cd output/release && sha256sum tyfza1-uboot-universal.bin tyfza1-flash-uboot README.md COPYING VERSION > SHA256SUMS)
+cp inputs/4ge-boot.bin inputs/2p5g-boot.bin output/release/
+(cd output/release && sha256sum tyfza1-uboot-universal.bin tyfza1-uboot-universal.json tyfza1-flash-uboot README.md COPYING VERSION 4ge-boot.bin 2p5g-boot.bin > SHA256SUMS)
 python3 scripts/package_installer.py output/release
 (cd output/release && sha256sum tyfza1-uboot-install.run >> SHA256SUMS)

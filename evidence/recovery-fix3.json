@@ -1,0 +1,34 @@
+{
+  "candidate": "TYFZA1 1.0 recovery-fix3",
+  "hardware_status": "not flashed or tested on physical board in this run",
+  "reported_failure": "fix2 identifies RTL8221B 0x1cc849, cold initialization -110; phase not recorded",
+  "findings": [
+    "Exact 2p5g OEM module SHA256 0ba23162b42e457b0628b0899e89883198aac919a14ddab91997fd9ef5710652 releases force-down and succeeds even after 100 polls with a434 bit2 clear.",
+    "fix2 changed OEM status wait expiration to fatal, preventing copper resume. Fix3 follows original flow and requires mode/release/resume readbacks.",
+    "Early watchdog shutdown previously depended on GLOBAL_SCRATCH low nibble 0xe. Fix3 stops PER_WDT_CTRL at decompressor and board entry without this condition."
+  ],
+  "verification": {
+    "general_suite": {
+      "run": 103,
+      "passed": 101,
+      "optional_skipped": 2
+    },
+    "oem_suite": {
+      "run": 10,
+      "passed": 10
+    },
+    "both_board_offline_installer_checks": "passed"
+  },
+  "firmware": {
+    "format": "TYFZA1-UBOOT-V1",
+    "bytes": 4194320,
+    "sha256": "1b22e02befbc0c7dbdf985c09624f8c21a378ca5924e053ba727348d31cd2894",
+    "variants": {
+      "4ge": "c2c44444c7201d27ba106f8f656759600cae1cdba74ca68579d1090e6ef742e7",
+      "2p5g": "67c3e076241347e188921721af92330f2c5540898f61ad5de9304ff81388ba0c"
+    },
+    "selection": "GPIO113:111 strap, followed by local GPT/BL2/BL31 comparison"
+  },
+  "installer_backup": false,
+  "next_hardware_evidence": "Initialization stage diagnostics, mode readbacks, external-port link and actual recovery traffic; cause remains unconfirmed until new live run"
+}

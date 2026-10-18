@@ -82,6 +82,11 @@ __attribute__((noreturn)) void loader_main(unsigned long a0, unsigned long a1,
 	uint64_t recorded_size = 0;
 	int ret;
 
+#if !LOADER_QEMU
+	/* BL2 can leave its short boot watchdog armed without the scratch marker. */
+	*(volatile uint32_t *)(uintptr_t)0xf432901c = 0;
+	__asm__ volatile("dsb sy" : : : "memory");
+#endif
 	serial_puts("TYFZA1: BL33 loader started\r\n");
 	if (source_size < 13 || payload_start[0] != 0x5d) failed();
 	for (i = 0; i < 8; i++) recorded_size |= (uint64_t)payload_start[5 + i] << (8 * i);

@@ -1,0 +1,17 @@
+{
+  "scope": "Offline installer checks using stock BusyBox 1.22.1; no live flash writes",
+  "busybox_sha256": "abcd6ed43a12a5c00c3f41eaf276360c2d244fd07289f8a170ab8405bbe20c46",
+  "installer_sha256": "5f976e092a2e6d794e168167a9993d0295b600876c3ab59b96b1d2b13a88ad29",
+  "checks": [
+    {
+      "variant": "4ge",
+      "result": "pass",
+      "output": "Detected TYFZA1 4ge; matching 2 MiB loader SHA256: c3e3376ce284de4ccc4e4d51c33a68735b743eb9243b7abbd917a118533d6ca6\nPackage and board checks passed; Flash unchanged.\n"
+    },
+    {
+      "variant": "2p5g",
+      "result": "pass",
+      "output": "Detected TYFZA1 2p5g; matching 2 MiB loader SHA256: 9f227861d3b6c95b122bfe0889a43b5cc466320cca8c687aacd771f1ed92f9ed\nPackage and board checks passed; Flash unchanged.\n"
+    }
+  ]
+}

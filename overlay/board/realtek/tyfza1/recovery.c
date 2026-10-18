@@ -116,6 +116,48 @@ static int resize_root(struct ubi_volume *root, int lebs)
 	return ret;
 }
 
+static int installed_openwrt_slot(int committed)
+{
+	struct fdt_header header;
+	struct tyf_payload image;
+	char name[16];
+	const char *description;
+	unsigned char *buffer;
+	unsigned int found = 0;
+	int slot, ret, length;
+	size_t used;
+	for (slot = 0; slot < 2; slot++) {
+		snprintf(name, sizeof(name), "ubi_k%d", slot);
+		ret = ubi_volume_get_size(name, &used, NULL);
+		if (ret) return -EINVAL;
+		if (used < sizeof(header)) continue;
+		ret = ubi_volume_read_quiet(name, (char *)&header, 0, sizeof(header));
+		if (ret) return -EIO;
+		if (fdt_magic(&header) != FDT_MAGIC) continue;
+		image.size = fdt_totalsize(&header);
+		if (image.size < sizeof(header) || image.size > used || image.size > 0x600000)
+			return -EINVAL;
+		buffer = malloc_cache_aligned(image.size);
+		if (!buffer) return -ENOMEM;
+		image.data = buffer;
+		ret = ubi_volume_read_quiet(name, (char *)buffer, 0, image.size);
+		if (!ret) ret = fdt_check_full(buffer, image.size);
+		if (!ret) {
+			description = fdt_getprop(buffer, 0, "description", &length);
+			/* All released PonWRT FITs carry this prefix; OEM FITs do not. */
+			if (description && length > 14 && !memcmp(description, "TYFZA1 native ", 14)) {
+				ret = verify_fit(&image);
+				if (!ret) found |= 1U << slot;
+			}
+		}
+		free(buffer);
+		if (ret) return -EINVAL;
+	}
+	if (found == 3) return committed;
+	if (found) return found == 2;
+	return 1 - committed;
+}
+
 int tyfza1_install_system(ulong address, size_t size, void (*poll)(void))
 {
 	struct tyf_firmware fw;
@@ -134,8 +176,6 @@ int tyfza1_install_system(ulong address, size_t size, void (*poll)(void))
 		if (strcmp(installed, "0") && strcmp(installed, "1")) goto out;
 		old_slot[0] = installed[0];
 	}
-	/* Keep reinstalling into OpenWrt's slot, preserving the original OEM slot. */
-	slot = installed ? old_slot[0] - '0' : old_commit[0] == '0' ? 1 : 0;
 	if (env_get("sw_active")) old_active[0] = env_get("sw_active")[0];
 	if (env_get("sw_tryactive")) old_try[0] = env_get("sw_tryactive")[0];
 	if (tyf_parse_sysupgrade(input, size, &fw) || verify_fit(&fw.kernel)) {
@@ -144,6 +184,9 @@ int tyfza1_install_system(ulong address, size_t size, void (*poll)(void))
 	}
 	ret = ubi_part("ubi_device", NULL);
 	if (ret) goto out;
+	/* Older Linux installers never persisted tyfza1_slot: inspect their FITs. */
+	slot = installed ? old_slot[0] - '0' : installed_openwrt_slot(old_commit[0] - '0');
+	if (slot < 0) { ret = slot; goto out; }
 	snprintf(kernel, sizeof(kernel), "ubi_k%d", slot);
 	snprintf(root, sizeof(root), "ubi_r%d", slot);
 	ret = ubi_volume_get_size(kernel, NULL, &capacity);
@@ -290,12 +333,6 @@ out:
 	return ret;
 }
 
-struct preserved_volume {
-	const char *name;
-	size_t size;
-	void *data;
-};
-
 int tyfza1_rebuild_ubi(void (*poll)(void))
 {
 	static const struct { const char *name; unsigned int size; } layout[] = {
@@ -305,57 +342,53 @@ int tyfza1_rebuild_ubi(void (*poll)(void))
 		{ "ubi_framework1", 0x101b000 }, { "ubi_framework2", 0x101b000 },
 		{ "ubi_apps", 0x6007000 }, { "rootfs_data", 0x1000000 },
 	};
-	struct preserved_volume keep[] = {
-		{ "ubi_Config", 0, NULL }, { "ubi_fpga", 0, NULL },
-		{ "ubi_DTB0", 0, NULL }, { "ubi_DTB1", 0, NULL },
-	};
-	struct mtd_info *mtd = NULL;
-	size_t offset;
+	const unsigned int keep = (1U << 0) | (1U << 1) | (1U << 2) | (1U << 5);
+	struct ubi_device *ubi;
+	struct ubi_volume *vol;
+	int available, needed = 0;
 	unsigned int i;
 	int ret = ubi_part("ubi_device", NULL);
 	if (ret) return ret;
-	/* Copy all optical/radio identity and FPGA/DT volumes before erasing anything. */
-	for (i = 0; i < ARRAY_SIZE(keep); i++) {
-		ret = ubi_volume_get_size(keep[i].name, &keep[i].size, NULL);
-		if (ret || !keep[i].size || keep[i].size > 0x800000) {
-			ret = ret ? ret : -EINVAL; goto out;
+	ubi = ubi_devices[0];
+	if (!ubi || ubi->ro_mode) return -EROFS;
+	available = ubi->avail_pebs;
+	if (ubi->beb_rsvd_level > ubi->beb_rsvd_pebs)
+		available -= ubi->beb_rsvd_level - ubi->beb_rsvd_pebs;
+	/* Keep calibration volumes in Flash throughout; never erase the whole MTD. */
+	for (i = 0; i < ubi->vtbl_slots; i++) {
+		vol = ubi->volumes[i];
+		if (!vol) continue;
+		if (i >= ARRAY_SIZE(layout) || strcmp(vol->name, layout[i].name)) {
+			puts("Unknown UBI volume layout; rebuild refused before removal.\n");
+			return -EINVAL;
 		}
-		keep[i].data = malloc_cache_aligned(keep[i].size);
-		if (!keep[i].data) { ret = -ENOMEM; goto out; }
-		ret = ubi_volume_read((char *)keep[i].name, keep[i].data, 0, keep[i].size);
-		if (ret) goto out;
-		poll();
+		if (!(keep & (1U << i))) available += vol->reserved_pebs;
 	}
-	ret = ubi_detach();
-	if (ret) goto out;
-	mtd_probe_devices();
-	mtd = get_mtd_device_nm("ubi_device");
-	if (IS_ERR(mtd)) { ret = PTR_ERR(mtd); mtd = NULL; goto out; }
-	if (mtd->size != 0x0f5c0000 || mtd->erasesize != 0x20000) { ret = -EINVAL; goto out; }
-	for (offset = 0; offset < mtd->size; offset += mtd->erasesize) {
-		struct erase_info erase = { .mtd = mtd, .addr = offset, .len = mtd->erasesize };
-		ret = mtd_block_isbad(mtd, offset);
-		if (ret < 0) goto out;
-		if (!ret && (ret = mtd_erase(mtd, &erase))) goto out;
-		poll();
-	}
-	put_mtd_device(mtd);
-	mtd = NULL;
-	ret = ubi_part("ubi_device", NULL);
-	if (ret) goto out;
 	for (i = 0; i < ARRAY_SIZE(layout); i++) {
-		ret = run_commandf("ubi create %s %x d %x", layout[i].name, layout[i].size, i);
-		if (ret) goto out;
+		if (keep & (1U << i)) {
+			vol = ubi->volumes[i];
+			if (!vol || vol->upd_marker || vol->corrupted) return -EINVAL;
+		} else {
+			needed += DIV_ROUND_UP(layout[i].size, ubi->leb_size);
+		}
+	}
+	if (needed > available) return -ENOSPC;
+	ret = env_set("tyfza1_slot", NULL);
+	if (!ret) ret = env_save();
+	if (ret) return ret;
+	for (i = 0; i < ARRAY_SIZE(layout); i++) {
+		if ((keep & (1U << i)) || !ubi->volumes[i]) continue;
+		ret = ubi_volume_remove((char *)layout[i].name);
+		if (ret) return ret;
 		poll();
 	}
-	for (i = 0; i < ARRAY_SIZE(keep); i++) {
-		ret = ubi_volume_write((char *)keep[i].name, keep[i].data, 0, keep[i].size);
-		if (!ret) ret = volume_verify((char *)keep[i].name, keep[i].data, keep[i].size, poll);
-		if (ret) goto out;
+	for (i = 0; i < ARRAY_SIZE(layout); i++) {
+		if (keep & (1U << i)) continue;
+		ret = run_commandf("ubi create %s %x d %x", layout[i].name,
+				   i == 11 ? 0 : layout[i].size, i);
+		if (ret) return ret;
+		poll();
 	}
-	puts("UBI rebuilt; factory, FPGA and board trees restored and read back. Install a system before booting.\n");
-out:
-	if (mtd) put_mtd_device(mtd);
-	for (i = 0; i < ARRAY_SIZE(keep); i++) free(keep[i].data);
-	return ret;
+	puts("UBI system volumes rebuilt; factory, FPGA and board trees stayed in Flash. Install a system before booting.\n");
+	return 0;
 }

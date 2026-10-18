@@ -30,7 +30,7 @@ jobs:
       - name: Obtain verified boot baselines
         run: |
           mkdir -p inputs
-          gh release download build-inputs-v1 --repo "$GITHUB_REPOSITORY" --pattern '*-boot.bin' --dir inputs
+          gh release download v1.0 --repo "$GITHUB_REPOSITORY" --pattern '*-boot.bin' --dir inputs
           python3 - <<'PYCODE'
           import hashlib, json
           from pathlib import Path
@@ -47,7 +47,7 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_*.py'
           python3 scripts/test_sandbox_crypto.py
           for variant in 4ge 2p5g; do
-            output/release/tyfza1-flash-uboot --check output/release/tyfza1-uboot-universal.bin "inputs/$variant-boot.bin"
+            sh output/release/tyfza1-uboot-install.run --check "inputs/$variant-boot.bin"
           done
       - name: Package source
         run: |
@@ -62,7 +62,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           test "$GITHUB_REF_NAME" = "v$(cat VERSION)"
-          gh release create "$GITHUB_REF_NAME" output/release/* \
-            --target "$GITHUB_SHA" --title "U-Boot $(cat VERSION)" \
-            --notes-file RELEASE_NOTES.md --latest
-          gh release edit "$GITHUB_REF_NAME" --prerelease=false --draft=false --latest
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --target "$GITHUB_SHA" \
+              --title "U-Boot $(cat VERSION)" --notes-file RELEASE_NOTES.md --draft
+          fi
+          gh release upload "$GITHUB_REF_NAME" output/release/* --clobber
+          gh release edit "$GITHUB_REF_NAME" --title "U-Boot $(cat VERSION)" \
+            --notes-file RELEASE_NOTES.md --prerelease=false --draft=false --latest

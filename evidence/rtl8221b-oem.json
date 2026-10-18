@@ -1,5 +1,5 @@
 {
-  "scope": "Actual U-Boot initialization compared event-for-event with original ARM64 OEM functions; PHY bus and timers simulated",
+  "scope": "Original successful initialization trace retained, followed by three readback checks; PHY bus and timers simulated",
   "module_sha256": "0ba23162b42e457b0628b0899e89883198aac919a14ddab91997fd9ef5710652",
   "runs": [
     {

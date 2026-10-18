@@ -1,0 +1,11 @@
+{
+  "module_sha256": "0ba23162b42e457b0628b0899e89883198aac919a14ddab91997fd9ef5710652",
+  "modeled_status_a434": "0x1600",
+  "oem_serdes_return": 1,
+  "oem_wait_us": 10000000,
+  "oem_release_force_down": true,
+  "native_original_writes_match": true,
+  "native_mode_readback": true,
+  "native_copper_resume_readback": true,
+  "scope": "Actual ARM64 OEM function; modeled MDIO/timer, no electrical validation"
+}

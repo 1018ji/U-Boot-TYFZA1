@@ -3,30 +3,30 @@
   "runs": [
     {
       "case": "4ge",
-      "input_sha256": "b341960d8369d2084a30df14d6b76f2741e3e1284a2685522b824813b243af8b",
+      "input_sha256": "f055aa77a6ee1dcb002804315d50368783ee89d9c6108b610361e1b11327eac3",
       "returncode": 0,
-      "stdout": "Bloblist at 100 not found (err=-2)\n\n\nU-Boot 2026.07 (Oct 18 2026 - 17:30:16 +0800)\n\nModel: TYFZA1 certificate test sandbox\nDRAM:  256 MiB\nCore:  8 devices, 6 uclasses, devicetree: board\nMMC:   \nLoading Environment from nowhere... OK\nIn:    serial\nOut:   serial\nErr:   serial\n2097152 bytes read in 1 ms (2 GiB/s)\nTYF CERT OK (0)\n",
+      "stdout": "Bloblist at 100 not found (err=-2)\n\n\nU-Boot 2026.07 (Oct 18 2026 - 23:40:19 +0800)\n\nModel: TYFZA1 certificate test sandbox\nDRAM:  256 MiB\nCore:  8 devices, 6 uclasses, devicetree: board\nMMC:   \nLoading Environment from nowhere... OK\nIn:    serial\nOut:   serial\nErr:   serial\n2097152 bytes read in 0 ms\nTYF CERT OK (0)\n",
       "stderr": ""
     },
     {
       "case": "2p5g",
-      "input_sha256": "a5e98d0527e1dbb6bb488d4f700ecce35b5dca0b2e6d57b5eb6401d8d0905044",
+      "input_sha256": "e7d8cf2b719fdba48c41d1b35601d07d8f7be9a97a924a3e3bc9e0807be181a1",
       "returncode": 0,
-      "stdout": "Bloblist at 100 not found (err=-2)\n\n\nU-Boot 2026.07 (Oct 18 2026 - 17:30:16 +0800)\n\nModel: TYFZA1 certificate test sandbox\nDRAM:  256 MiB\nCore:  8 devices, 6 uclasses, devicetree: board\nMMC:   \nLoading Environment from nowhere... OK\nIn:    serial\nOut:   serial\nErr:   serial\n2097152 bytes read in 1 ms (2 GiB/s)\nTYF CERT OK (0)\n",
+      "stdout": "Bloblist at 100 not found (err=-2)\n\n\nU-Boot 2026.07 (Oct 18 2026 - 23:40:19 +0800)\n\nModel: TYFZA1 certificate test sandbox\nDRAM:  256 MiB\nCore:  8 devices, 6 uclasses, devicetree: board\nMMC:   \nLoading Environment from nowhere... OK\nIn:    serial\nOut:   serial\nErr:   serial\n2097152 bytes read in 1 ms (2 GiB/s)\nTYF CERT OK (0)\n",
       "stderr": ""
     },
     {
       "case": "corrupt-bl33",
-      "input_sha256": "6f55289f4da69fd6ebf68b5086c97bdf71b6f283b43def1baf4e6ba162450dc2",
+      "input_sha256": "9c881e7a057de6a61688b29cc7b75666dca041626c85edc0cf3ff798d1e3fcbd",
       "returncode": 1,
-      "stdout": "Bloblist at 100 not found (err=-2)\n\n\nU-Boot 2026.07 (Oct 18 2026 - 17:30:16 +0800)\n\nModel: TYFZA1 certificate test sandbox\nDRAM:  256 MiB\nCore:  8 devices, 6 uclasses, devicetree: board\nMMC:   \nLoading Environment from nowhere... OK\nIn:    serial\nOut:   serial\nErr:   serial\n2097152 bytes read in 0 ms\nTYF CERT REJECT (-1)\n",
+      "stdout": "Bloblist at 100 not found (err=-2)\n\n\nU-Boot 2026.07 (Oct 18 2026 - 23:40:19 +0800)\n\nModel: TYFZA1 certificate test sandbox\nDRAM:  256 MiB\nCore:  8 devices, 6 uclasses, devicetree: board\nMMC:   \nLoading Environment from nowhere... OK\nIn:    serial\nOut:   serial\nErr:   serial\n2097152 bytes read in 0 ms\nTYF CERT REJECT (-1)\n",
       "stderr": ""
     },
     {
       "case": "corrupt-nt_cert",
-      "input_sha256": "735e317d9c89adcb86a57a91acbff6c3e3edb8e35f66140438cbe67fcf4915b4",
+      "input_sha256": "84c164bf2387d0d67fcfbc9e67102517423117e372c59521632b4738927fb0af",
       "returncode": 1,
-      "stdout": "Bloblist at 100 not found (err=-2)\n\n\nU-Boot 2026.07 (Oct 18 2026 - 17:30:16 +0800)\n\nModel: TYFZA1 certificate test sandbox\nDRAM:  256 MiB\nCore:  8 devices, 6 uclasses, devicetree: board\nMMC:   \nLoading Environment from nowhere... OK\nIn:    serial\nOut:   serial\nErr:   serial\n2097152 bytes read in 0 ms\npadding_pss_verify: invalid pss padding (0xbc is missing)\nTYF CERT REJECT (-1)\n",
+      "stdout": "Bloblist at 100 not found (err=-2)\n\n\nU-Boot 2026.07 (Oct 18 2026 - 23:40:19 +0800)\n\nModel: TYFZA1 certificate test sandbox\nDRAM:  256 MiB\nCore:  8 devices, 6 uclasses, devicetree: board\nMMC:   \nLoading Environment from nowhere... OK\nIn:    serial\nOut:   serial\nErr:   serial\n2097152 bytes read in 0 ms\npadding_pss_verify: invalid pss padding (0xbc is missing)\nTYF CERT REJECT (-1)\n",
       "stderr": ""
     }
   ]

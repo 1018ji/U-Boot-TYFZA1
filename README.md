@@ -33,7 +33,7 @@
 | 支持机型 | 硬件 strap | FIT 配置 | 验证情况 |
 | :--- | :---: | :---: | :--- |
 | 全千兆版 | `001` | `conf-1` | 已完成实机验证 |
-| RTL8221B 2.5G 口版 | `000` | `conf-0` | 已完成离线测试 |
+| RTL8221B 2.5G 口版 | `000` | `conf-0` | 已确认实机启动并进入恢复网页 |
 
 通用包包含两种机型的 loader，共用同一份 U-Boot BL33。安装时核对本机 GPT、BL2、BL31 和保留区域，再选择匹配镜像。
 
@@ -46,6 +46,7 @@
 | `tyfza1-uboot-install.run` | 从原厂系统或 OpenWrt 安装 U-Boot |
 | `tyfza1-uboot-universal.bin` | 在 U-Boot 恢复网页中更新引导器 |
 | `SHA256SUMS` | 发布文件的 SHA-256 校验值 |
+| `4ge-boot.bin` / `2p5g-boot.bin` | 自动构建使用的固定原厂基线，普通安装无需下载 |
 
 ## 安装
 
@@ -135,7 +136,17 @@ sh /tmp/tyfza1-uboot-install.run
 httpd dhcp
 ```
 
-Reset 在启动阶段检测。正常开机由 **Start OpenWrt** 启动系统。
+Reset 在网络初始化前锁存，松开按键后仍会进入恢复。成功进入 U-Boot 后 LAN1–LAN4 依次亮 150ms，总计 600ms；随后恢复原有灯脚状态。正常开机由 **Start OpenWrt** 启动系统。
+
+恢复 IP 固定为 `192.168.0.1`，DHCP 服务仅负责给电脑分配地址。电脑也可使用 `192.168.0.2/24`。在环境变量页将 `httpd_dhcp` 保存为 `0` 可立即、持久关闭 DHCP 服务；`1` 在下次进入恢复时启用。恢复地址使用 `httpd_ipaddr` 和 `httpd_netmask`，下次启动恢复服务生效；网页保存 `ipaddr` / `netmask` 也会同步到恢复设置。串口静态恢复示例：
+
+```text
+setenv httpd_ipaddr 192.168.0.1
+setenv httpd_netmask 255.255.255.0
+setenv httpd_dhcp 0
+saveenv
+tyfrecovery
+```
 
 ### 安装 OpenWrt
 
@@ -144,7 +155,7 @@ Reset 在启动阶段检测。正常开机由 **Start OpenWrt** 启动系统。
 3. 等待任务完成，点击“启动系统”。
 4. 电脑重新获取地址后，打开 **[http://192.168.1.1](http://192.168.1.1/)**。
 
-首次安装选择原厂当前槽以外的系统槽，并记录为 OpenWrt 槽；后续恢复安装使用同一个槽。安装器校验并读回 kernel/rootfs，按实际镜像大小分配 rootfs，将余下空间分配给 rootfs_data。
+首次安装先识别已有 PonWRT FIT；旧安装即使没有槽位标记，也会复用识别到的 OpenWrt 槽。两槽均无 PonWRT 时才选择原厂当前槽以外的系统槽，并记录为 OpenWrt 槽；后续恢复安装使用同一个槽。安装器校验并读回 kernel/rootfs，按实际镜像大小分配 rootfs，将余下空间分配给 rootfs_data。
 
 当前 beta 镜像的可写数据卷约 **41.6 MiB**，空白文件系统可用约 **34.6 MiB**。身份、光学和无线校准数据及另一系统槽予以保留。
 
@@ -165,7 +176,7 @@ sysupgrade /tmp/sysupgrade.bin
 | 命令控制台 | 在“高级 → 命令控制台”执行 U-Boot 命令并查看输出 |
 | 分区写入 | 选择 MTD / UBI 目标，上传对应分区镜像 |
 | 恢复整片 Flash | 上传本机完整主数据备份，按 4 MiB 分段恢复，最后更新引导区 |
-| 重建 UBI | 重建系统卷，并恢复支持的本机出厂数据卷 |
+| 重建 UBI | 仅重建系统卷，保留本机出厂配置、FPGA 和 DTB 卷 |
 | 清除坏块标记 | 维修功能：擦除整片 NAND，包含出厂坏块标记 |
 
 MTD 备份按物理偏移保存，坏块区域填充 `FF`，不包含 OOB。整片恢复的备份大小须与 Flash 容量相同，身份、认证和校准数据使用本机备份。
@@ -188,7 +199,7 @@ sudo apt-get install \
 
 ### 2. 编译与打包
 
-将两版原厂 boot 基线放入 `inputs/4ge-boot.bin`、`inputs/2p5g-boot.bin`，SHA-256 见 [stock-inputs.json](evidence/stock-inputs.json)。自动构建从固定的 `build-inputs-v1` 发布资源获取这些文件。
+将两版原厂 boot 基线放入 `inputs/4ge-boot.bin`、`inputs/2p5g-boot.bin`，SHA-256 见 [stock-inputs.json](evidence/stock-inputs.json)。自动构建从 `v1.0` Release 获取这两份基线，并按固定 SHA-256 校验；普通安装不使用基线文件。
 
 ```sh
 sh scripts/build.sh
@@ -210,7 +221,7 @@ python3 scripts/test_sandbox_crypto.py
 
 全千兆版已验证 Flash 冷启动、恢复网络、通用包更新、网页安装、FIT 内存启动和标准 sysupgrade。存储、温度和网页操作结果见 [实机记录](evidence/hardware-validation-20261018.json)。
 
-2.5G 版已完成镜像格式、证书链、早期引导数据、板型选择及 PHY 操作测试，实机结果待补充。离线测试执行生产代码，覆盖压缩 BL33 对齐、签名拒绝、FIP 写入顺序、读回失败、坏块和恢复中断。
+2.5G 版已确认新版 U-Boot 实机启动并进入恢复网页；原厂系统安装器的 FIP1/FIP0 写入和读回也已成功。外置口协商速率及四口逐一收发仍未完成验收。离线测试执行生产代码，覆盖压缩 BL33 对齐、签名拒绝、FIP 写入顺序、读回失败、坏块和恢复中断。
 
 ## 来源与许可
 

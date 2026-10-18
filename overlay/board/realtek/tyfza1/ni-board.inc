@@ -35,8 +35,12 @@ static int tyf_ni_board_prepare(struct cortina_ni_priv *priv)
 	priv->maps[4].phy_id = -1;
 	priv->maps[5].phy_id = -1;
 	if (!variant || strcmp(variant, "2p5g")) return 0;
+	/* Original PORT_REMAPPING is 4,2,1,0; port3 has no external jack. */
+	priv->maps[3].phy_id = -1;
 	priv->maps[4].phy_id = 7;
 	priv->maps[4].sds_mode = AAL_SDS_MODE_SGMII;
+	/* Preserve the MDC divider, but explicitly select software MDIO control. */
+	setbits_le32(0xf4329118, BIT(0));
 	tyf_gpio_output(128, false);
 	mdelay(30);
 	tyf_gpio_output(128, true);

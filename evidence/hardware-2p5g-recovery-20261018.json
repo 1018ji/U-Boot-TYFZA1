@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-18",
+  "board": "2p5g",
+  "tested_candidate": "recovery-fix3",
+  "boot_image_sha256": "67c3e076241347e188921721af92330f2c5540898f61ad5de9304ff81388ba0c",
+  "linux_installer": {
+    "fip1_written_and_read_back": true,
+    "fip0_written_and_read_back": true,
+    "exit_code": 0
+  },
+  "recovery_page": {
+    "entered_successfully": true,
+    "evidence": "User confirmed U-Boot succeeded and recovery page opens after flash"
+  },
+  "limits": [
+    "Negotiated 2500 Mbps not independently confirmed",
+    "Four physical LAN ports not individually tested",
+    "Final 1.0 rebuild removes page footer and candidate suffix; physical confirmation applies to fix3 core implementation"
+  ]
+}

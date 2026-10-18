@@ -7,6 +7,12 @@ if [ "$#" -gt 2 ] || { [ "$#" -gt 0 ] && [ "$1" != --check ]; }; then
     echo "Usage: sh $0 [--check [boot-backup.bin]]" >&2
     exit 1
 fi
+for tool in id mkdir rm tail md5sum tar; do
+    if ! type "$tool" >/dev/null 2>&1; then
+        echo "Required command not found: $tool" >&2
+        exit 1
+    fi
+done
 if [ "$#" -eq 0 ] && [ "$(id -u)" -ne 0 ]; then
     echo "Run this installer as root." >&2
     exit 1
@@ -18,11 +24,16 @@ if [ "$#" -eq 2 ]; then
     esac
 fi
 
-install_dir=$(mktemp -d /tmp/tyfza1-uboot.XXXXXX)
+# The stock BusyBox has no mktemp. Only clean up a directory we created.
+install_dir=/tmp/tyfza1-uboot.$$
+if ! mkdir "$install_dir"; then
+    echo "Cannot create installer directory: $install_dir" >&2
+    exit 1
+fi
 trap 'rm -rf "$install_dir"' 0
 trap 'exit 1' 1 2 15
-checksum=$(tail -n +@PAYLOAD_LINE@ "$0" | sha256sum)
-if [ "${checksum%% *}" != '@PAYLOAD_SHA256@' ]; then
+checksum=$(tail -n +@PAYLOAD_LINE@ "$0" | md5sum)
+if [ "${checksum%% *}" != '@PAYLOAD_MD5@' ]; then
     echo "Installer checksum failed; copy the complete file again." >&2
     exit 1
 fi

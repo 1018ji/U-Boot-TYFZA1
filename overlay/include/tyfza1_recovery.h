@@ -2,6 +2,8 @@
 #ifndef TYFZA1_RECOVERY_H
 #define TYFZA1_RECOVERY_H
 #include <linux/types.h>
+int tyfza1_reset_held(void);
+void tyfza1_boot_leds(void);
 int tyfza1_install_system(ulong address, size_t size, void (*poll)(void));
 int tyfza1_check_fit(ulong address, size_t size);
 int tyfza1_boot_upload(ulong address, size_t size);

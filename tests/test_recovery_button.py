@@ -20,30 +20,32 @@ class RecoveryButtonTests(unittest.TestCase):
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#define BUTTON_ON 1
-struct udevice { int unused; };
-static struct udevice button;
-static int lookup_result, button_state, http_result, http_calls, dhcp;
-static int button_get_by_label(const char *label, struct udevice **out) {
- if (strcmp(label,"reset")) return -EINVAL;
- *out=&button;return lookup_result;
+static bool reset_requested;
+static int button_state, http_result, http_calls, dhcp, policy=1, boot_disabled, lights;
+static int tyfza1_reset_held(void) {return button_state;}
+static void tyfza1_boot_leds(void) {lights++;}
+static int env_get_yesno(const char *name) {(void)name;return policy;}
+static int env_set(const char *name,const char *value) {
+ if(!strcmp(name,"bootcmd") && !value[0])boot_disabled=1;return 0;
 }
-static int button_get_state(struct udevice *dev) { (void)dev;return button_state; }
 static int uboot_httpd_start(bool with_dhcp) {
  http_calls++;dhcp=with_dhcp;return http_result;
 }
 '''
         tail = r'''
-int test_button(int lookup, int state, int result) {
- lookup_result=lookup;button_state=state;http_result=result;http_calls=0;dhcp=0;
+int test_button(int latched, int state, int result) {
+ reset_requested=latched;button_state=state;http_result=result;http_calls=0;dhcp=0;boot_disabled=lights=0;
  return tyfza1_recovery_button();
 }
 int test_http_calls(void) { return http_calls; }
 int test_dhcp(void) { return dhcp; }
+void test_policy(int value) {policy=value;}
+int test_boot_disabled(void) {return boot_disabled;}
+int test_lights(void) {return lights;}
 '''
         path=work/'button.c';path.write_text(prelude+body+tail)
         library=work/'button.so'
-        subprocess.run(['cc','-O2','-shared','-fPIC','-Wall','-Wextra','-Werror',
+        subprocess.run(['cc','-O2','-shared','-fPIC','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',
                         str(path),'-o',str(library)],check=True)
         cls.lib=C.CDLL(str(library));cls.lib.test_button.argtypes=[C.c_int,C.c_int,C.c_int]
 
@@ -68,17 +70,26 @@ int test_dhcp(void) { return dhcp; }
         self.assertEqual(self.lib.test_button(0,0,0),0)
         self.assertEqual(self.lib.test_http_calls(),0)
 
-    def test_unavailable_button_continues_normal_boot(self):
-        self.assertEqual(self.lib.test_button(-19,0,0),0)
-        self.assertEqual(self.lib.test_http_calls(),0)
+    def test_early_press_is_kept_after_button_release(self):
+        self.assertEqual(self.lib.test_button(1,0,0),0)
+        self.assertEqual(self.lib.test_http_calls(),1)
+        self.assertEqual(self.lib.test_boot_disabled(),1)
 
-    def test_read_error_continues_normal_boot(self):
-        self.assertEqual(self.lib.test_button(0,-5,0),0)
-        self.assertEqual(self.lib.test_http_calls(),0)
+    def test_static_policy_is_honored(self):
+        self.lib.test_policy(0)
+        self.assertEqual(self.lib.test_button(1,0,0),0)
+        self.assertEqual(self.lib.test_dhcp(),0)
+        self.lib.test_policy(1)
+
+    def test_startup_lights_run_on_normal_and_recovery_boot(self):
+        for state in (0,1):
+            self.lib.test_button(0,state,0)
+            self.assertEqual(self.lib.test_lights(),1)
 
     def test_http_failure_is_reported(self):
-        self.assertEqual(self.lib.test_button(0,1,-110),-110)
+        self.assertEqual(self.lib.test_button(0,1,-110),0)
         self.assertEqual(self.lib.test_http_calls(),1)
+        self.assertEqual(self.lib.test_boot_disabled(),1)
 
 
 if __name__=='__main__':unittest.main()

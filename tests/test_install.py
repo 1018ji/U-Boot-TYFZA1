@@ -22,6 +22,7 @@ class InstallTests(unittest.TestCase):
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
+#include <libfdt.h>
 #include "formats.h"
 #define UBI_EXCLUSIVE 1
 #define IS_ERR(p) 0
@@ -36,6 +37,9 @@ static struct ubi_volume vols[128];
 static struct ubi_volume_desc desc;
 static char commit[2], active[2], trying[2], installed[2];
 static int save_fail, last_slot, writes;
+static unsigned char old_fits[2][4096];
+static int read_fail;
+#define malloc_cache_aligned malloc
 typedef unsigned long ulong;
 static void *map_sysmem(ulong addr,size_t size) { (void)size;return (void *)addr; }
 static void unmap_sysmem(const void *addr) { (void)addr; }
@@ -62,6 +66,11 @@ static int ubi_volume_get_size(const char *name,size_t *used,size_t *capacity) {
  if(used)*used=(size_t)v->reserved_pebs*v->usable_leb_size;
  if(capacity)*capacity=(size_t)v->reserved_pebs*v->usable_leb_size;
  return 0;
+}
+static int ubi_volume_read_quiet(const char *name,char *buffer,size_t off,size_t size) {
+ int slot=!strcmp(name,"ubi_k1");
+ if(read_fail || off+size>sizeof(old_fits[slot])) return -EIO;
+ memcpy(buffer,old_fits[slot]+off,size);return 0;
 }
 static struct ubi_volume_desc *ubi_open_volume(int n,int id,int mode) { (void)n;(void)mode;desc.vol=&vols[id];return &desc; }
 static int ubi_resize_volume(struct ubi_volume_desc *d,int lebs) {
@@ -100,7 +109,14 @@ void test_reset(int committed,int previous,int fail) {
  }
  commit[0]=active[0]='0'+committed;trying[0]='2';installed[0]=previous<0?0:'0'+previous;
  commit[1]=active[1]=trying[1]=installed[1]=0;save_fail=fail;writes=0;last_slot=-1;
+ memset(old_fits,0xff,sizeof(old_fits));read_fail=0;
 }
+void test_old_fit(int slot,int native) {
+ fdt_create_empty_tree(old_fits[slot],sizeof(old_fits[slot]));
+ fdt_setprop_string(old_fits[slot],0,"description",native?"TYFZA1 native SIGNED boot-contract candidate":"OEM Taurus");
+ fdt_pack(old_fits[slot]);
+}
+void test_read_failure(void) { read_fail=1; }
 int test_install(const void *data,size_t size) { return tyfza1_install_system((ulong)data,size,no_poll); }
 int test_state(int key) {
  if(key==0)return last_slot;if(key==1)return installed[0]?installed[0]-'0':-1;
@@ -111,7 +127,8 @@ int test_state(int key) {
 '''
         cfile=work/'install.c';cfile.write_text(prelude+body+tail)
         lib=work/'install.so';board=ROOT/'overlay/board/realtek/tyfza1'
-        subprocess.run(['cc','-O2','-shared','-fPIC','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-I'+str(board),str(cfile),str(board/'formats.c'),'-o',str(lib)],check=True)
+        fdt=ROOT/'build/u-boot/scripts/dtc/libfdt'
+        subprocess.run(['cc','-O2','-shared','-fPIC','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-I'+str(board),'-I'+str(fdt),str(cfile),str(board/'formats.c'),*[str(p) for p in fdt.glob('fdt*.c')],'-o',str(lib)],check=True)
         cls.lib=C.CDLL(str(lib));cls.lib.test_install.argtypes=[C.c_void_p,C.c_size_t]
         stream=io.BytesIO()
         root=bytearray(8*1024*1024);root[:4]=b'hsqs';struct.pack_into('<Q',root,40,len(root))
@@ -136,4 +153,16 @@ int test_state(int key) {
         self.assertEqual(self.state(1),-1);self.assertEqual(self.state(2),0)
     def test_invalid_slot_marker_prevents_writes(self):
         self.lib.test_reset(0,2,0);self.assertNotEqual(self.install(),0);self.assertEqual(self.state(6),0)
+    def test_legacy_install_without_marker_preserves_oem_slot(self):
+        for slot in (0,1):
+            self.lib.test_reset(slot,-1,0)
+            self.lib.test_old_fit(slot,1);self.lib.test_old_fit(1-slot,0)
+            self.assertEqual(self.install(),0)
+            self.assertEqual(self.state(0),slot);self.assertEqual(self.state(1),slot)
+    def test_existing_openwrt_detected_even_if_oem_is_committed(self):
+        self.lib.test_reset(0,-1,0);self.lib.test_old_fit(1,1)
+        self.assertEqual(self.install(),0);self.assertEqual(self.state(0),1)
+    def test_read_failure_stops_before_any_write(self):
+        self.lib.test_reset(0,-1,0);self.lib.test_read_failure()
+        self.assertNotEqual(self.install(),0);self.assertEqual(self.state(6),0)
 if __name__=='__main__':unittest.main()

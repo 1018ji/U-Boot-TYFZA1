@@ -1,0 +1,37 @@
+{
+  "candidate": "TYFZA1 1.0 recovery-fix2",
+  "base_commit": "59dc45c8e6bb8bca06cd92844d435a7bed90a8f7",
+  "validation": {
+    "tests_run": 98,
+    "passed": 97,
+    "skipped": 1,
+    "skipped_scope": "optional original ARM64 OEM module comparison",
+    "physical_board_tested": false
+  },
+  "fixes": [
+    "Early GPIO8 Reset latch before PHY discovery; recovery errors return to prompt",
+    "RTL8221B driver-specific direct Clause45 read_mmd/write_mmd callbacks through real U-Boot phylib",
+    "MDIO W1C completion clearing and 50 ms per-phase timeout; failure stops next phase",
+    "2p5g physical port map 4,2,1,0, software MDIO mode",
+    "LAN1-LAN4 sequential 150 ms lights, board-specific polarity, original register restoration",
+    "Persistent httpd_dhcp=0 and recovery IP aliases in web environment save",
+    "Identify existing PonWRT FITs when old installation has no saved slot marker",
+    "Rebuild only system UBI volumes, never remove factory/FPGA/DTB volumes"
+  ],
+  "error_policy": "PHY discovery/configuration and MDIO errors are returned, not silently skipped",
+  "production_bl33": {
+    "plain_bytes": 562592,
+    "plain_sha256": "a8293f37ddc5da1e3c731c709d1c9ba0e4aafa3043b686ce3b25845d34283586",
+    "lzma_bytes": 223387,
+    "bl33_bytes": 230304,
+    "bl33_sha256": "8cb49a5cb371b9b9eb0c1937021ec17edc0c0bbb67f4af914b9b266742853a57",
+    "run_address": "0x4000000",
+    "relocation_address": "0x8000000",
+    "stack_top": "0x1000000",
+    "workspace_end": "0x80483a0",
+    "qemu_fixture": false
+  },
+  "installer": {
+    "sha256": "e7be2ded18a209746c4e4ea3855dd0cdebccd8901a62b3a4c6332512487b4ec0"
+  }
+}

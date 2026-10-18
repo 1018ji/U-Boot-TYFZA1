@@ -1,0 +1,38 @@
+{
+  "release": "1.0",
+  "general_suite": {
+    "run": 103,
+    "passed": 101,
+    "optional_skipped": 2
+  },
+  "sandbox_crypto": "passed; production U-Boot crypto backend",
+  "frontend_footer_removed": true,
+  "readme_and_source_license_preserved": true,
+  "source_lock": {
+    "reference": {
+      "url": "https://github.com/pbs05/uboot-an758x.git",
+      "commit": "4b91e112c345b8a4ad4f954775f3f4955f2cafb2",
+      "directory": "uboot-an758x"
+    },
+    "realtek": {
+      "url": "https://github.com/jameywine/GPL-for-GP3000.git",
+      "commit": "5090fbcb6ba743dd7b1314811ef557bad0460147",
+      "directory": "realtek-gpl",
+      "subdirectory": "bootloader/u-boot-2022.10"
+    }
+  },
+  "built_bl33": {
+    "plain_bytes": 554608,
+    "plain_sha256": "3e6d787700032ae5dd4c387d8cdee3eeba44bdf0f5e39a98c05cef6c0d7a479b",
+    "lzma_bytes": 223302,
+    "bl33_bytes": 230240,
+    "bl33_sha256": "913e1b06f36d8d2ddab8beac2bde5e0c13f55e068de6127ff2318ad1f46187d5",
+    "run_address": "0x4000000",
+    "relocation_address": "0x8000000",
+    "stack_top": "0x1000000",
+    "workspace_end": "0x8048360",
+    "qemu_fixture": false
+  },
+  "hardware_evidence": "hardware-2p5g-recovery-20261018.json",
+  "release_baselines": "v1.0 assets, SHA256 pinned in stock-inputs.json"
+}

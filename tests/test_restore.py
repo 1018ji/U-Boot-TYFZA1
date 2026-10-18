@@ -24,7 +24,7 @@ class RestoreTests(unittest.TestCase):
         # Only replace includes at the hardware boundary. Production function bodies
         # and their actual formats.c dependency are compiled without rewriting them.
         recovery = (BOARD / "recovery.c").read_text()
-        update = recovery[recovery.index("static int read_mtd("):recovery.index("struct preserved_volume {")]
+        update = recovery[recovery.index("static int read_mtd("):recovery.index("int tyfza1_rebuild_ubi(")]
         restore = "\n".join(line for line in (BOARD / "restore.c").read_text().splitlines() if not line.startswith("#include"))
         tail = r'''
 static void no_poll(void) {}

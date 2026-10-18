@@ -9,6 +9,7 @@
 #include <command.h>
 #include <net/httpd.h>
 #include <ubi_uboot.h>
+#include <tyfza1_recovery.h>
 #include <asm/global_data.h>
 #include <asm/io.h>
 #include <asm/armv8/mmu.h>
@@ -28,6 +29,7 @@ static struct mm_region tyfza1_mem_map[] = {
 };
 struct mm_region *mem_map = tyfza1_mem_map;
 static u32 original_xram[0x2000 / sizeof(u32)];
+static bool reset_requested;
 
 int print_cpuinfo(void)
 {
@@ -58,7 +60,10 @@ int board_init(void)
 {
 	unsigned int i;
 	extern void ca77xx_eth_change_default(void);
+	/* Also covers entry from RAM without the compressed BL33 wrapper. */
+	writel(0, PER_WDT_CTRL);
 	writel(1, 0xf4321000);
+	reset_requested = tyfza1_reset_held();
 	for (i = 0; i < ARRAY_SIZE(original_xram); i++)
 		original_xram[i] = readl(0xf4500000 + i * 4);
 	ca77xx_eth_change_default();
@@ -81,8 +86,7 @@ int board_late_init(void)
 	u32 strap;
 
 	/* Match the stock success handoff to BL2/BL31 and their watchdog state. */
-	if ((readl(GLOBAL_SCRATCH) & 0xf) == 0xe)
-		writel(0, PER_WDT_CTRL);
+	writel(0, PER_WDT_CTRL);
 	writel(0, GLOBAL_SCRATCH);
 	writel(0, 0x0111111c);
 	writel(0x00200000, DMA_SEC_SSP_FRAME_CTRL0);
@@ -94,7 +98,7 @@ int board_late_init(void)
 	setbits_le32(0xf432932c, mask);
 	strap = (readl(0xf4329334) >> 15) & 7;
 	if (strap > 1) {
-		env_set("bootcmd", "httpd dhcp");
+		env_set("bootcmd", "tyfrecovery");
 		env_set("board_variant", "unknown");
 		env_set("b_conf", NULL);
 		return 0;
@@ -103,8 +107,8 @@ int board_late_init(void)
 	env_set("board_variant", strap ? "4ge" : "2p5g");
 	/* Existing OEM NAND environments must not replace the new recovery entry. */
 	env_set("bootcmd", "bootmenu 3");
-	env_set("bootmenu_0", "Start OpenWrt=tyfboot; httpd dhcp");
-	env_set("bootmenu_1", "Web recovery=httpd dhcp");
+	env_set("bootmenu_0", "Start OpenWrt=tyfboot; tyfrecovery");
+	env_set("bootmenu_1", "Web recovery=tyfrecovery");
 	env_set("boot_production", "tyfboot");
 	return 0;
 }
@@ -132,23 +136,28 @@ static int tyfza1_boot(struct cmd_tbl *cmdtp, int flag, int argc, char *const ar
 U_BOOT_CMD(tyfboot, 1, 0, tyfza1_boot,
 	   "boot the committed TYFZA1 UBI slot", "");
 
+static int tyfza1_recovery(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
+{
+	return uboot_httpd_start(env_get_yesno("httpd_dhcp") != 0);
+}
+
+U_BOOT_CMD(tyfrecovery, 1, 0, tyfza1_recovery,
+	   "start recovery using saved httpd_dhcp/IP settings", "");
+
 static int tyfza1_recovery_button(void)
 {
-	struct udevice *button;
-	int ret = button_get_by_label("reset", &button);
-	if (ret) {
-		printf("Reset button unavailable (%d)\n", ret);
+	int ret;
+	reset_requested |= tyfza1_reset_held();
+	tyfza1_boot_leds();
+	if (!reset_requested) {
+		puts("Reset released: normal boot\n");
 		return 0;
 	}
-	ret = button_get_state(button);
-	if (ret == BUTTON_ON) {
-		puts("Reset held: starting TYFZA1 HTTP recovery\n");
-		return uboot_httpd_start(true);
-	}
-	if (ret < 0)
-		printf("Reset button read failed (%d)\n", ret);
-	else
-		puts("Reset released: normal boot\n");
+	/* On exit or a network error, stay at the prompt instead of booting Linux. */
+	env_set("bootcmd", "");
+	puts("Reset held: starting TYFZA1 HTTP recovery\n");
+	ret = uboot_httpd_start(env_get_yesno("httpd_dhcp") != 0);
+	if (ret) printf("Recovery network failed (%d); use tyfrecovery to retry.\n", ret);
 	return 0;
 }
 EVENT_SPY_SIMPLE(EVT_POST_PREBOOT, tyfza1_recovery_button);
