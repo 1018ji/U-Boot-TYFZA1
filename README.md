@@ -39,20 +39,19 @@
 
 ## 下载
 
-前往 **[Releases](https://github.com/LeoooChen/U-Boot-TYFZA1/releases/latest)** 下载。首次安装使用 `tyfza1-uboot-install.tar.gz`。
+前往 **[Releases](https://github.com/LeoooChen/U-Boot-TYFZA1/releases/latest)** 下载 **`tyfza1-uboot-install.run`**。全千兆版和 2.5G 口版使用同一个文件。
 
 | 文件 | 用途 |
 | :--- | :--- |
-| `tyfza1-uboot-install.tar.gz` | 原厂系统 / OpenWrt 安装包，含刷写工具与通用镜像 |
+| `tyfza1-uboot-install.run` | 从原厂系统或 OpenWrt 安装 U-Boot |
 | `tyfza1-uboot-universal.bin` | 在 U-Boot 恢复网页中更新引导器 |
-| `tyfza1-flash-uboot` | ARM64 Linux 静态刷写工具 |
 | `SHA256SUMS` | 发布文件的 SHA-256 校验值 |
 
 ## 安装
 
 ### 原厂系统（Telnet）
 
-#### 1. 取得 root 权限
+#### 1. 登录光猫
 
 电脑通过网线连接光猫 LAN 口，打开 [Telnet 开启页面](http://192.168.1.1:8080/CCOM/OpenTelnet.asp)，然后在电脑终端执行：
 
@@ -60,83 +59,64 @@
 telnet 192.168.1.1
 ```
 
-默认用户名、密码均为 `telnetadmin`。登录后执行 `su`，再次输入 `telnetadmin`。已修改地址或密码时，使用实际配置。
+默认用户名、密码均为 `telnetadmin`。登录后执行 `su`，再次输入 `telnetadmin`，取得 root 权限。已修改地址或密码时，使用实际配置。
 
-#### 2. 传入安装包
+#### 2. 传入文件
 
-将安装包下载到电脑，在其所在目录启动 HTTP 服务：
+将 `tyfza1-uboot-install.run` 传入光猫的 `/tmp`，选择以下任一方式。
+
+**电脑传输（Python）**
+
+在电脑上进入文件所在目录，运行：
 
 ```sh
 python3 -m http.server 8000
 ```
 
-在光猫 root 终端执行以下命令，将 `192.168.1.2` 换成电脑的 LAN 地址：
+在光猫 Telnet 中执行，将 `192.168.1.2` 换成电脑的 LAN 地址：
 
 ```sh
-cd /tmp
-wget -O tyfza1-uboot-install.tar.gz \
-  http://192.168.1.2:8000/tyfza1-uboot-install.tar.gz
-mkdir -p tyfza1-uboot
-cd tyfza1-uboot
-tar -xzf ../tyfza1-uboot-install.tar.gz
-sha256sum -c SHA256SUMS
+wget -O /tmp/tyfza1-uboot-install.run \
+  http://192.168.1.2:8000/tyfza1-uboot-install.run
 ```
 
-也可将安装包复制到 U 盘，挂载后解压到 `/tmp/tyfza1-uboot`。
+**U 盘传输**
 
-#### 3. 校验并刷入
+将文件放到 U 盘根目录，插入光猫后，在 Telnet 中执行：
 
 ```sh
-chmod +x tyfza1-flash-uboot
-./tyfza1-flash-uboot --check tyfza1-uboot-universal.bin
-./tyfza1-flash-uboot tyfza1-uboot-universal.bin
+cp /mnt/usb*/tyfza1-uboot-install.run /tmp/
 ```
 
-工具会显示机型、镜像 SHA-256 和 boot 备份文件名。出现以下结果即完成：
+#### 3. 安装并重启
 
-```text
-FIP1 written and read back.
-FIP0 written and read back.
-U-Boot installed. Reboot to start it.
+```sh
+sh /tmp/tyfza1-uboot-install.run
 ```
 
-将 `tyfza1-boot-backup-*.bin` 保存到电脑，再执行 `reboot`。刷写期间保持供电。
+安装器自动解包、校验文件、识别机型，并完成双份 FIP 的刷写和读回校验。看到 `U-Boot installed.` 即安装成功。
+
+boot 备份保存在 `/tmp/tyfza1-boot-backup-*.bin`，重启前可复制到电脑或 U 盘。随后执行：
+
+```sh
+reboot
+```
 
 ### OpenWrt（SSH）
 
-使用支持 boot 分区更新的 [PonWRT 0.8.0-beta](https://github.com/LeoooChen/PonWRT-TYFZA1/releases/tag/v0.8.0-beta) 或后续版本。
-
-#### 1. 登录并下载
-
-在电脑终端连接光猫：
+使用支持 boot 分区写入的 OpenWrt。通过 SSH 登录：
 
 ```sh
 ssh root@192.168.1.1
 ```
 
-在光猫 root 终端执行：
+将同一个 `tyfza1-uboot-install.run` 传入 `/tmp`，执行：
 
 ```sh
-cd /tmp
-wget -O tyfza1-uboot-install.tar.gz \
-  https://github.com/LeoooChen/U-Boot-TYFZA1/releases/download/v1.0/tyfza1-uboot-install.tar.gz
-mkdir -p tyfza1-uboot
-cd tyfza1-uboot
-tar -xzf ../tyfza1-uboot-install.tar.gz
-sha256sum -c SHA256SUMS
+sh /tmp/tyfza1-uboot-install.run
 ```
 
-#### 2. 校验并刷入
-
-```sh
-chmod +x tyfza1-flash-uboot
-./tyfza1-flash-uboot --check tyfza1-uboot-universal.bin
-./tyfza1-flash-uboot tyfza1-uboot-universal.bin
-```
-
-看到 `U-Boot installed.` 后，将生成的 boot 备份保存到电脑，再执行 `reboot`。
-
-两种安装方式使用同一工具。首次擦除前会检查机型、证书、分区参数、写权限和两个 FIP 区域的坏块。
+看到 `U-Boot installed.` 后保存 boot 备份，再执行 `reboot`。
 
 ## 恢复网页
 
