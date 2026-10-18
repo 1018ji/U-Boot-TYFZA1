@@ -92,8 +92,12 @@ int tyfza1_check_fit(ulong address, size_t size)
 
 int tyfza1_boot_upload(ulong address, size_t size)
 {
+	const char *slot = env_get("tyfza1_slot");
 	int ret = tyfza1_check_fit(address, size);
 	if (ret) return ret;
+	if (!slot) slot = env_get("sw_commit");
+	/* Signed system scripts select their root volume through root_mtd. */
+	env_set("root_mtd", slot && !strcmp(slot, "1") ? "31:12" : "31:9");
 	/* Source the validated board script when present; otherwise select the board FIT explicitly. */
 	env_set_hex("unzip_src", address);
 	if (fdt_path_offset((void *)address, "/images/script") >= 0)
