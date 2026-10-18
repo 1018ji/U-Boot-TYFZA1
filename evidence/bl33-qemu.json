@@ -1,15 +1,15 @@
 {
   "scope": "Real AArch64 relocation, LZMA decoder, integrity checks and EL2 handoff on QEMU virt; no Taurus drivers or hardware tested",
   "image": {
-    "plain_bytes": 556072,
-    "plain_sha256": "df03443fb801112fab33eba55d93f52140eb4f5671823115091b2862a45b2ae1",
-    "lzma_bytes": 222090,
-    "bl33_bytes": 229040,
-    "bl33_sha256": "afe59e8b1eb698c3604871391f2d0991a731078b7c788329258e2905aa194770",
+    "plain_bytes": 552152,
+    "plain_sha256": "88c3ed638d4e224d0f29145ab3c7948ea69ce841ce21c15fe0463e6e0a5ad79c",
+    "lzma_bytes": 222437,
+    "bl33_bytes": 229392,
+    "bl33_sha256": "d3ae7b0a7f3f0dc826ef549e069de427be9dea7d85876e6a68a715fdf4f0c53a",
     "run_address": "0x41000000",
     "relocation_address": "0x48000000",
     "stack_top": "0x4f000000",
-    "workspace_end": "0x48047eb0",
+    "workspace_end": "0x48048010",
     "qemu_fixture": true
   },
   "runs": [

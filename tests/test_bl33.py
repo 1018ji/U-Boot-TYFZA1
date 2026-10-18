@@ -2,12 +2,12 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Run the actual AArch64 BL33 wrapper in QEMU virt, without Taurus MMIO."""
 import json
-import lzma
 from pathlib import Path
 import struct
 import subprocess
 import sys
 import unittest
+import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -154,23 +154,29 @@ _start:
         self.assertIn("integrity/decompression failed", result.stdout)
 
     def test_valid_lzma_with_incorrect_output_crc(self):
-        image = bytearray(self.wrapped.read_bytes())
-        start = self.symbols["payload_start"] - 0x48000000
-        end = self.symbols["payload_end"] - 0x48000000
-        for position in range(64, 128):
-            changed = bytearray(self.plain); changed[position] ^= 1
-            stream = lzma.compress(changed, format=lzma.FORMAT_ALONE, filters=[{
-                "id": lzma.FILTER_LZMA1, "dict_size": 1 << 20, "lc": 3, "lp": 0, "pb": 2,
-                "mode": lzma.MODE_NORMAL, "nice_len": 128, "mf": lzma.MF_BT4}])
-            if len(stream) == end - start:
-                stream = stream[:5] + struct.pack("<Q", len(changed)) + stream[13:]
-                self.assertEqual(lzma.decompress(stream, format=lzma.FORMAT_ALONE), changed)
-                self.assertNotEqual(changed, self.plain)
-                break
-        else:
-            self.fail("Unable to construct the equal-length valid LZMA corruption fixture")
-        image[start:end] = stream
-        path = WORK / "bad-crc.bin"; path.write_bytes(image)
+        # Keep the valid stream and give the real loader a mismatching expected CRC.
+        # Searching for an equal-length recompression depends on firmware contents.
+        work = ROOT / "build/bl33/qemu"
+        fixture = WORK / "bad-crc-config"
+        fixture.mkdir(exist_ok=True)
+        original = (work / "loader-config.h").read_text()
+        crc = zlib.crc32(self.plain)
+        changed = original.replace(f"#define PLAIN_CRC {crc:#x}\n",
+                                   f"#define PLAIN_CRC {crc ^ 1:#x}\n")
+        self.assertNotEqual(original, changed)
+        (fixture / "loader-config.h").write_text(changed)
+        main = fixture / "main.o"
+        subprocess.run(["aarch64-linux-gnu-gcc", "-Os", "-ffreestanding", "-fno-builtin",
+                        "-fno-stack-protector", "-fno-pie", "-mgeneral-regs-only", "-mstrict-align",
+                        "-ffunction-sections", "-fdata-sections", "-Wall", "-Wextra", "-Werror",
+                        "-I" + str(fixture), "-I" + str(work / "sdk"),
+                        "-c", str(ROOT / "loader/main.c"), "-o", str(main)], check=True)
+        elf = fixture / "bl33.elf"
+        subprocess.run(["aarch64-linux-gnu-ld", "--gc-sections", "--build-id=none",
+                        "-T", str(work / "linker.lds"), str(work / "start.o"), str(main),
+                        str(work / "decoder.o"), str(work / "payload.o"), "-o", str(elf)], check=True)
+        path = WORK / "bad-crc.bin"
+        subprocess.run(["aarch64-linux-gnu-objcopy", "-O", "binary", str(elf), str(path)], check=True)
         result = self.run_qemu(path, 0x44000000, "valid-stream-wrong-output-crc")
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("integrity/decompression failed", result.stdout)

@@ -145,7 +145,11 @@ static int tyfza1_recovery_button(void)
 		puts("Reset held: starting TYFZA1 HTTP recovery\n");
 		return uboot_httpd_start(true);
 	}
-	return ret < 0 ? ret : 0;
+	if (ret < 0)
+		printf("Reset button read failed (%d)\n", ret);
+	else
+		puts("Reset released: normal boot\n");
+	return 0;
 }
 EVENT_SPY_SIMPLE(EVT_POST_PREBOOT, tyfza1_recovery_button);
 

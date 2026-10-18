@@ -129,7 +129,7 @@ sh /tmp/tyfza1-uboot-install.run
 
 恢复服务提供 DHCP。手动设置电脑地址时，使用 `192.168.0.2/24`。
 
-使用串口时，参数为 **115200 / 8N1**。开机菜单选择 **Web recovery**，也可在 `TYFZA1#` 提示符执行：
+使用串口时，参数为 **115200 / 8N1**。开机菜单出现后，按方向键选中 **Web recovery**，再按回车。也可按 Esc 返回 `TYFZA1#`，执行：
 
 ```text
 httpd dhcp

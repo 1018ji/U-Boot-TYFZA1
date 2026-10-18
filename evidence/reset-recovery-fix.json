@@ -1,0 +1,17 @@
+{
+  "issue": "Holding Reset at power-on did not start HTTP recovery",
+  "causes": [
+    "EVENT is a hidden Kconfig symbol and was not enabled by its defconfig assignment",
+    "GPIO button probe requires the linux,code property, which was missing"
+  ],
+  "fix": [
+    "Select EVENT from TARGET_TYFZA1",
+    "Set KEY_RESTART on the compiled GPIO8 active-low reset button",
+    "Report released/error states and keep ordinary boot available on read errors"
+  ],
+  "resolved_config_event": true,
+  "compiled_reset_linux_code": 408,
+  "callback_regression_cases": 7,
+  "both_board_installer_checks": "passed",
+  "physical_reset_button_test": "awaiting user test"
+}
