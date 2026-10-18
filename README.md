@@ -45,8 +45,6 @@
 | :--- | :--- |
 | `tyfza1-uboot-install.run` | 从原厂系统或 OpenWrt 安装 U-Boot |
 | `tyfza1-uboot-universal.bin` | 在 U-Boot 恢复网页中更新引导器 |
-| `SHA256SUMS` | 发布文件的 SHA-256 校验值 |
-| `4ge-boot.bin` / `2p5g-boot.bin` | 自动构建使用的固定原厂基线，普通安装无需下载 |
 
 ## 安装
 
@@ -199,9 +197,11 @@ sudo apt-get install \
 
 ### 2. 编译与打包
 
-将两版原厂 boot 基线放入 `inputs/4ge-boot.bin`、`inputs/2p5g-boot.bin`，SHA-256 见 [stock-inputs.json](evidence/stock-inputs.json)。自动构建从 `v1.0` Release 获取这两份基线，并按固定 SHA-256 校验；普通安装不使用基线文件。
+两版原厂 boot 基线保存在 [evidence/stock-boot](evidence/stock-boot)，SHA-256 见 [stock-inputs.json](evidence/stock-inputs.json)。自动构建使用仓库内的基线，并按固定 SHA-256 校验。
 
 ```sh
+mkdir -p inputs
+cp evidence/stock-boot/*-boot.bin inputs/
 sh scripts/build.sh
 sh scripts/package_release.sh
 ```
@@ -215,7 +215,7 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 python3 scripts/test_sandbox_crypto.py
 ```
 
-提交到 `main` 自动构建并保存产物；推送与 `VERSION` 对应的版本标签（如 `v1.0`）后，自动发布普通 GitHub Release。
+提交到 `main` 自动构建并保存产物；推送与 `VERSION` 对应的版本标签（如 `v1.0`）后，自动发布 GitHub Release，仅附带 `.run` 安装包和通用 `.bin` 升级包。
 
 ## 验证记录
 

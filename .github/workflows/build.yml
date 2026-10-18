@@ -30,7 +30,7 @@ jobs:
       - name: Obtain verified boot baselines
         run: |
           mkdir -p inputs
-          gh release download v1.0 --repo "$GITHUB_REPOSITORY" --pattern '*-boot.bin' --dir inputs
+          cp evidence/stock-boot/*-boot.bin inputs/
           python3 - <<'PYCODE'
           import hashlib, json
           from pathlib import Path
@@ -49,10 +49,6 @@ jobs:
           for variant in 4ge 2p5g; do
             sh output/release/tyfza1-uboot-install.run --check "inputs/$variant-boot.bin"
           done
-      - name: Package source
-        run: |
-          git archive --format=tar.gz --prefix=U-Boot-TYFZA1/ HEAD > output/release/U-Boot-TYFZA1-source.tar.gz
-          (cd output/release && sha256sum U-Boot-TYFZA1-source.tar.gz >> SHA256SUMS)
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: tyfza1-uboot-${{ github.sha }}
@@ -66,6 +62,8 @@ jobs:
             gh release create "$GITHUB_REF_NAME" --target "$GITHUB_SHA" \
               --title "U-Boot $(cat VERSION)" --notes-file RELEASE_NOTES.md --draft
           fi
-          gh release upload "$GITHUB_REF_NAME" output/release/* --clobber
+          gh release upload "$GITHUB_REF_NAME" \
+            output/release/tyfza1-uboot-install.run \
+            output/release/tyfza1-uboot-universal.bin --clobber
           gh release edit "$GITHUB_REF_NAME" --title "U-Boot $(cat VERSION)" \
             --notes-file RELEASE_NOTES.md --prerelease=false --draft=false --latest
