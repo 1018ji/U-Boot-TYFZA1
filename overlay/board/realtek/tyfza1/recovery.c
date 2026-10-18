@@ -116,9 +116,9 @@ int tyfza1_install_system(ulong address, size_t size, void (*poll)(void))
 {
 	struct tyf_firmware fw;
 	const void *input = map_sysmem(address, size);
-	const char *committed = env_get("sw_commit");
+	const char *committed = env_get("sw_commit"), *installed = env_get("tyfza1_slot");
 	char kernel[16], root[16];
-	char old_commit[2] = "0", old_active[2] = "0", old_try[2] = "2";
+	char old_commit[2] = "0", old_active[2] = "0", old_try[2] = "2", old_slot[2] = "";
 	struct ubi_device *ubi;
 	struct ubi_volume *rootvol, *data;
 	size_t capacity;
@@ -126,7 +126,12 @@ int tyfza1_install_system(ulong address, size_t size, void (*poll)(void))
 
 	if (committed && strcmp(committed, "0") && strcmp(committed, "1")) goto out;
 	if (committed) old_commit[0] = committed[0];
-	slot = old_commit[0] == '0' ? 1 : 0;
+	if (installed) {
+		if (strcmp(installed, "0") && strcmp(installed, "1")) goto out;
+		old_slot[0] = installed[0];
+	}
+	/* Keep reinstalling into OpenWrt's slot, preserving the original OEM slot. */
+	slot = installed ? old_slot[0] - '0' : old_commit[0] == '0' ? 1 : 0;
 	if (env_get("sw_active")) old_active[0] = env_get("sw_active")[0];
 	if (env_get("sw_tryactive")) old_try[0] = env_get("sw_tryactive")[0];
 	if (tyf_parse_sysupgrade(input, size, &fw) || verify_fit(&fw.kernel)) {
@@ -159,7 +164,7 @@ int tyfza1_install_system(ulong address, size_t size, void (*poll)(void))
 		ret = resize_root(rootvol, root_lebs);
 		if (ret) goto out;
 	}
-	printf("Installing inactive slot %d; current slot and factory volumes are retained.\n", slot);
+	printf("Installing OpenWrt in slot %d; factory volumes are retained.\n", slot);
 	ret = ubi_volume_write(root, (void *)fw.root.data, 0, fw.root.size);
 	if (!ret) ret = volume_verify(root, fw.root.data, fw.root.size, poll);
 	if (ret) goto out;
@@ -175,11 +180,13 @@ int tyfza1_install_system(ulong address, size_t size, void (*poll)(void))
 	env_set("sw_commit", slot ? "1" : "0");
 	env_set("sw_active", slot ? "1" : "0");
 	env_set("sw_tryactive", "2");
+	env_set("tyfza1_slot", slot ? "1" : "0");
 	ret = env_save();
 	if (ret) {
 		env_set("sw_commit", old_commit);
 		env_set("sw_active", old_active);
 		env_set("sw_tryactive", old_try);
+		env_set("tyfza1_slot", old_slot[0] ? old_slot : NULL);
 	} else {
 		printf("Slot %d written, read back and committed.\n", slot);
 	}

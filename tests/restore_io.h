@@ -56,7 +56,9 @@ static struct mtd_info *get_mtd_device_nm(const char *name)
 }
 static void put_mtd_device(struct mtd_info *mtd) { (void)mtd; references--; }
 static void *map_sysmem(ulong address, size_t size) { (void)size; return (void *)address; }
+static ulong map_to_sysmem(const void *address) { return (ulong)address; }
 static void unmap_sysmem(const void *address) { (void)address; }
+static const char *env_get(const char *name) { return !strcmp(name, "board_variant") ? "4ge" : NULL; }
 static int ubi_detach(void) { return detach_error; }
 static int mtd_block_isbad(struct mtd_info *mtd, size_t offset)
 {

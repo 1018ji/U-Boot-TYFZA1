@@ -88,9 +88,14 @@ def main():
 \t\tprintf("%s: TX timeout (read=%x write=%x)\\n", __func__, hw_tx_rd_ptr, sw_tx_wr_ptr);
 \t\treturn -ETIMEDOUT;
 \t}''')
-    # Preserve the caller's actual length when the XRAM transfer needs extra padding.
-    replace(board / "vendor/eth_ni.c", "\t/* a workaround on 2015/10/01 the packet size+CRC should be 8-byte alignment */", "\tunsigned int original_length = length;\n\n\t/* a workaround on 2015/10/01 the packet size+CRC should be 8-byte alignment */")
-    replace(board / "vendor/eth_ni.c", "memcpy(&(pkt_buf[HEADER_A_SIZE]), (const void *)packet, length);", "memcpy(&(pkt_buf[HEADER_A_SIZE]), (const void *)packet, original_length);")
+    # XRAM rounds its storage slots; bytes_valid carries the exact wire length.
+    # Padding a 1514-byte Ethernet frame to an 8-byte boundary exceeds the MTU.
+    replace(board / "vendor/eth_ni.c",
+            "\t/* a workaround on 2015/10/01 the packet size+CRC should be 8-byte alignment */\n\tif (((length + 4) % 8) != 0)\n\t\tlength += (8 - ((length + 4) % 8));",
+            "\t/* Keep Ethernet length unchanged; XRAM bytes_valid handles its last word. */")
+    # RTL9617C TX valid-byte bits are 14:12; the imported bitfield uses 13:10.
+    replace(board / "vendor/eth_ni.c", "hdr_xt.bf.bytes_valid = valid_bytes;",
+            "hdr_xt.wrd |= (u32)valid_bytes << 12;")
     replace(board / "vendor/eth_ni.c", "if (packet_status.bf.packet_size > 1518) {", "if (packet_status.bf.packet_size > 1518 || packet_status.bf.packet_size < 18) {")
     replace(board / "vendor/eth_ni.h", "\tuint8_t is_qxsgmii;", "\tuint8_t is_qxsgmii;\n\tunsigned long link_polled;")
     # Port4 uses the exact TYFZA1 S3 sequence above, shared with the Linux port.
@@ -153,6 +158,8 @@ def main():
 \thttp_netif = NULL;''')
     replace(http, '#define HTTPD_UBI_PART\t\t"ubi"', '#define HTTPD_UBI_PART\t\t"ubi_device"')
     replace(http, '"airoha,an758x-recovery-layout"', '"tianyi,tyfza1-recovery-layout"')
+    replace(http, "\thttp_netif = netif;\n\tbuild_info();",
+            "\thttp_netif = netif;\n\t/* Populate UBI backups as soon as recovery opens. */\n\tif (ubi_part(HTTPD_UBI_PART, NULL))\n\t\tputs(\"UBI unavailable; raw NAND maintenance remains available.\\n\");\n\tbuild_info();")
     replace(http, "static int run_bootloader_update(bool bl2)\n{", "static int run_bootloader_update(bool bl2)\n{\n\tif (IS_ENABLED(CONFIG_TARGET_TYFZA1))\n\t\treturn tyfza1_install_loader(buffer_addr, buffer_size, bl2, service_network);")
     replace(http, "static int run_firmware_update(void)\n{", "static int run_firmware_update(void)\n{\n\tif (IS_ENABLED(CONFIG_TARGET_TYFZA1))\n\t\treturn tyfza1_install_system(buffer_addr, buffer_size, service_network);")
     replace(http, "static int run_ubi_rebuild(void)\n{", "static int run_ubi_rebuild(void)\n{\n\tif (IS_ENABLED(CONFIG_TARGET_TYFZA1))\n\t\treturn tyfza1_rebuild_ubi(service_network);")
