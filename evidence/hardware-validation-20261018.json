@@ -7,7 +7,7 @@
     "cold_start_from_flash": true,
     "ram_bytes": 536870912,
     "flash_bytes": 268435456,
-    "readback_sha256": "91e21aa338f37a71156f6fc851546aa56ac06722a6dc2b6c246febe7cf882be4",
+    "readback_sha256": "b341960d8369d2084a30df14d6b76f2741e3e1284a2685522b824813b243af8b",
     "matches_selected_universal_image": true,
     "uboot_version": "1.0"
   },
@@ -25,7 +25,7 @@
     "baseline_overlay_available_kib": 12516,
     "native_install_data_lebs": 342,
     "native_install_data_bytes": 43425792,
-    "native_install_overlay_available_kib": 35268,
+    "native_install_overlay_available_kib": 35264,
     "sysupgrade_data_lebs": 344,
     "sysupgrade_overlay_available_kib": 35476,
     "random_write_bytes": 25165824,
@@ -38,7 +38,7 @@
   },
   "thermal": {
     "baseline_mC": -50023,
-    "native_firmware_mC": 45308,
+    "native_firmware_mC": 45470,
     "after_sysupgrade_mC": 46498,
     "sysfs_and_rpc_agree": true
   },
@@ -81,7 +81,17 @@
     "beta_system_install_through_page": true,
     "reinstall_selected_slot": 1,
     "reboot_button": true,
-    "ram_boot": "Uploaded system FIT starts kernel with the recorded OpenWrt root slot; final cold boot validation follows",
-    "destructive_operations": "Full restore, MTD faults and system installation run production code with modeled I/O; NAND scrub / full erase not executed on this unit"
+    "ram_boot": {
+      "uploaded_fit_booted": true,
+      "kernel_root": "ubi_r1",
+      "version": "0.8.0-beta",
+      "slot": 1
+    },
+    "destructive_operations": "Full restore, MTD faults and system installation run production code with modeled I/O; NAND scrub / full erase not executed on this unit",
+    "restore_start_and_cancel_without_erase": true
+  },
+  "release_ci": {
+    "run_url": "https://github.com/LeoooChen/U-Boot-TYFZA1/actions/runs/39115574584",
+    "result": "success"
   }
 }
