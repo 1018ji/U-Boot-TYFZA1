@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-2.0-only
+if TARGET_TYFZA1
+config SYS_BOARD
+	default "tyfza1"
+config SYS_VENDOR
+	default "realtek"
+config SYS_SOC
+	default "taurus"
+config SYS_CONFIG_NAME
+	default "tyfza1"
+config TARGET_RTK_TAURUS
+	bool
+	default y
+config CORTINA_SERIAL_NAND
+	bool
+	default y
+	select SYS_NAND_SELF_INIT
+config RTK_SPI_FLASH_IO_BITS
+	int
+	default 1
+endif

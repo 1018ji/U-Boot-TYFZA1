@@ -1,0 +1,4 @@
+{
+  "reference": {"url": "https://github.com/pbs05/uboot-an758x.git", "commit": "4b91e112c345b8a4ad4f954775f3f4955f2cafb2", "directory": "uboot-an758x"},
+  "realtek": {"url": "https://github.com/jameywine/GPL-for-GP3000.git", "commit": "5090fbcb6ba743dd7b1314811ef557bad0460147", "directory": "realtek-gpl", "subdirectory": "bootloader/u-boot-2022.10"}
+}

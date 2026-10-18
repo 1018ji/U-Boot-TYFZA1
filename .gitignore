@@ -1,0 +1,7 @@
+sources/
+build/
+output/
+inputs/
+keys/
+*.log
+__pycache__/

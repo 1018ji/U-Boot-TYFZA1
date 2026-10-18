@@ -1,0 +1,22 @@
+[
+  {
+    "variant": "4ge",
+    "boot_sha256": "7524c98bdfc23c387ed3a720c50839fffb36a1a1f8b9128019ca8e59dc5c957e",
+    "parser_return": 0,
+    "bl2_bytes": 132816,
+    "bl31_bytes": 128224,
+    "stock_bl33_bytes": 475590,
+    "fip_non_bl33_bytes": 268659,
+    "maximum_bl33_bytes_without_extra_padding": 517773
+  },
+  {
+    "variant": "2p5g",
+    "boot_sha256": "232eed5077c097e0897f2115af030d4556ecfeabd1048402a55f5d522e4290e4",
+    "parser_return": 0,
+    "bl2_bytes": 132888,
+    "bl31_bytes": 124320,
+    "stock_bl33_bytes": 467222,
+    "fip_non_bl33_bytes": 264827,
+    "maximum_bl33_bytes_without_extra_padding": 521605
+  }
+]

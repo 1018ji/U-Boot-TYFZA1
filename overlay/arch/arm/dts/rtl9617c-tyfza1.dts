@@ -1,0 +1,46 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/dts-v1/;
+#include <dt-bindings/gpio/gpio.h>
+/ {
+	model = "Tianyi TYFZA1";
+	compatible = "tianyi,tyfza1", "realtek,rtl9617c";
+	#address-cells = <2>;
+	#size-cells = <2>;
+	aliases { serial0 = &uart0; ethernet0 = &eth; };
+	chosen { stdout-path = "serial0:115200n8"; };
+	buttons {
+		compatible = "gpio-keys";
+		reset { label = "reset"; gpios = <&gpio0 8 GPIO_ACTIVE_LOW>; };
+	};
+	recovery-layout {
+		compatible = "tianyi,tyfza1-recovery-layout";
+		factory { volume-name = "ubi_Config"; volume-type = "dynamic"; volume-size = <0x60e000>; };
+		fpga { volume-name = "ubi_fpga"; volume-type = "dynamic"; volume-size = <0x41e000>; };
+		dtb0 { volume-name = "ubi_DTB0"; volume-type = "dynamic"; volume-size = <0x5d000>; };
+		dtb1 { volume-name = "ubi_DTB1"; volume-type = "dynamic"; volume-size = <0x5d000>; };
+	};
+	memory@0 { device_type = "memory"; reg = <0 0 0 0x20000000>; };
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+		secure@eeff000 { reg = <0 0x0eeff000 0 0x01101000>; no-map; };
+	};
+	uart0: serial@f43291b0 {
+		compatible = "cortina,ca-uart";
+		reg = <0 0xf43291b0 0 0x30>;
+		clock-frequency = <125000000>;
+		bootph-all;
+	};
+	gpio0: gpio@f43292c0 {
+		compatible = "cortina,ca-gpio";
+		reg = <0 0xf43292c0 0 0x24>, <0 0xf4320100 0 4>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+	eth: ethernet@f4300000 {
+		compatible = "eth_cortina";
+		reg = <0 0xf4320000 0 0x400>, <0 0xf4329118 0 0x10>, <0 0xf4304000 0 0x1000>;
+		rx-mode = <1>;
+	};
+};

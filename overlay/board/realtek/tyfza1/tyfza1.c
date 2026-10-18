@@ -1,0 +1,140 @@
+// SPDX-License-Identifier: GPL-2.0-only
+#include <config.h>
+#include <env.h>
+#include <init.h>
+#include <event.h>
+#include <stdio.h>
+#include <string.h>
+#include <button.h>
+#include <command.h>
+#include <net/httpd.h>
+#include <ubi_uboot.h>
+#include <asm/global_data.h>
+#include <asm/io.h>
+#include <asm/armv8/mmu.h>
+#include <linux/arm-smccc.h>
+#include <linux/psci.h>
+#include <linux/errno.h>
+
+DECLARE_GLOBAL_DATA_PTR;
+
+static struct mm_region tyfza1_mem_map[] = {
+	{ .virt = 0, .phys = 0, .size = 0x20000000,
+	  .attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) | PTE_BLOCK_INNER_SHARE },
+	{ .virt = 0x80000000UL, .phys = 0x80000000UL, .size = 0x580000000UL,
+	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
+		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
+	{ 0 }
+};
+struct mm_region *mem_map = tyfza1_mem_map;
+
+int print_cpuinfo(void)
+{
+	puts("CPU:   Realtek RTL9617CVW (Taurus), Cortex-A55\n");
+	return 0;
+}
+
+int dram_init(void)
+{
+	/* BL2 publishes the trained capacity in MiB. Both TYFZA1 boards have 512. */
+	if (readl(0x0111100c) != 512)
+		return -EINVAL;
+	gd->ram_size = 0x20000000;
+	return 0;
+}
+
+int dram_init_banksize(void)
+{
+	/* Keep the original secure mailbox and all of the BL31 region unavailable. */
+	gd->bd->bi_dram[0].start = 0;
+	gd->bd->bi_dram[0].size = 0x0eeff000;
+	gd->bd->bi_dram[1].start = 0x10000000;
+	gd->bd->bi_dram[1].size = 0x10000000;
+	return 0;
+}
+
+int board_init(void)
+{
+	writel(1, 0xf4321000);
+	return 0;
+}
+
+int board_late_init(void)
+{
+	u32 mask = 7U << 15;
+	u32 strap;
+
+	/* Match the stock success handoff to BL2/BL31 and their watchdog state. */
+	if ((readl(GLOBAL_SCRATCH) & 0xf) == 0xe)
+		writel(0, PER_WDT_CTRL);
+	writel(0, GLOBAL_SCRATCH);
+	writel(0, 0x0111111c);
+	writel(0x00200000, DMA_SEC_SSP_FRAME_CTRL0);
+	env_set("mtdids", CONFIG_MTDIDS_DEFAULT);
+	env_set("mtdparts", CONFIG_MTDPARTS_DEFAULT);
+
+	/* GPIO113:111, matching the original conf_match environment. */
+	setbits_le32(0xf432010c, mask);
+	setbits_le32(0xf432932c, mask);
+	strap = (readl(0xf4329334) >> 15) & 7;
+	if (strap > 1) {
+		env_set("bootcmd", "httpd dhcp");
+		env_set("board_variant", "unknown");
+		env_set("b_conf", NULL);
+		return 0;
+	}
+	env_set("b_conf", strap ? "conf-1" : "conf-0");
+	env_set("board_variant", strap ? "4ge" : "2p5g");
+	/* Existing OEM NAND environments must not replace the new recovery entry. */
+	env_set("bootcmd", "bootmenu 3");
+	env_set("bootmenu_0", "Start OpenWrt=tyfboot; httpd dhcp");
+	env_set("bootmenu_1", "Web recovery=httpd dhcp");
+	env_set("boot_production", "tyfboot");
+	return 0;
+}
+
+static int tyfza1_boot(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
+{
+	const char *committed = env_get("sw_commit");
+	const char *conf = env_get("b_conf");
+	int slot = committed && !strcmp(committed, "1");
+	char volume[16];
+
+	if (!conf || (strcmp(conf, "conf-0") && strcmp(conf, "conf-1")))
+		return CMD_RET_FAILURE;
+	if (ubi_part("ubi_device", NULL))
+		return CMD_RET_FAILURE;
+	snprintf(volume, sizeof(volume), "ubi_k%d", slot);
+	env_set("root_mtd", slot ? "31:12" : "31:9");
+	env_set("unzip_src", "0x05000000");
+	/* The existing signed boot script uses root_mtd and b_conf for both boards. */
+	if (run_commandf("ubi read 0x05000000 %s 0x600000", volume))
+		return CMD_RET_FAILURE;
+	return run_command("source 0x05000000:script", 0);
+}
+
+U_BOOT_CMD(tyfboot, 1, 0, tyfza1_boot,
+	   "boot the committed TYFZA1 UBI slot", "");
+
+static int tyfza1_recovery_button(void)
+{
+	struct udevice *button;
+	int ret = button_get_by_label("reset", &button);
+	if (ret) {
+		printf("Reset button unavailable (%d)\n", ret);
+		return 0;
+	}
+	ret = button_get_state(button);
+	if (ret == BUTTON_ON) {
+		puts("Reset held: starting TYFZA1 HTTP recovery\n");
+		return uboot_httpd_start(true);
+	}
+	return ret < 0 ? ret : 0;
+}
+EVENT_SPY_SIMPLE(EVT_POST_PREBOOT, tyfza1_recovery_button);
+
+void reset_cpu(void)
+{
+	struct arm_smccc_res res;
+	arm_smccc_smc(PSCI_0_2_FN_SYSTEM_RESET, 0, 0, 0, 0, 0, 0, 0, &res);
+}
