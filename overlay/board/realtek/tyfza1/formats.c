@@ -70,6 +70,30 @@ int tyf_parse_loader(const void *data, size_t size, struct tyf_fip *out)
 	return 0;
 }
 
+/* GPT CRCs, disk GUID and partition GUIDs are generated per device. */
+static int gpt_unique(size_t off)
+{
+	static const size_t headers[] = { 0x200, TYF_BOOT_SIZE - 0x200 };
+	static const size_t entries[] = { 0x400, TYF_BOOT_SIZE - 0x4200 };
+	unsigned int i;
+	for (i = 0; i < 2; i++) {
+		size_t h = headers[i], e = entries[i];
+		if ((off >= h + 0x10 && off < h + 0x14) || (off >= h + 0x38 && off < h + 0x48) ||
+		    (off >= h + 0x58 && off < h + 0x5c) ||
+		    (off >= e && off < e + 0x4000 && (off - e) % 0x80 >= 0x10 && (off - e) % 0x80 < 0x20))
+			return 1;
+	}
+	return 0;
+}
+
+static int same_boot_layout(const unsigned char *current, const unsigned char *next,
+			    size_t start, size_t end)
+{
+	for (; start < end; start++)
+		if (current[start] != next[start] && !gpt_unique(start)) return 0;
+	return 1;
+}
+
 int tyf_loader_preserves_device(const void *next_data, size_t next_size,
 			       const void *current_data, size_t current_size)
 {
@@ -78,8 +102,8 @@ int tyf_loader_preserves_device(const void *next_data, size_t next_size,
 	struct tyf_fip image, old;
 	unsigned int i, matched = 0;
 	if (current_size != TYF_BOOT_SIZE || tyf_parse_loader(next, next_size, &image) ||
-	    memcmp(current, next, TYF_FIP0_OFFSET) ||
-	    memcmp(current + 0x1c0000, next + 0x1c0000, 0x40000)) return -1;
+	    !same_boot_layout(current, next, 0, TYF_FIP0_OFFSET) ||
+	    !same_boot_layout(current, next, 0x1c0000, TYF_BOOT_SIZE)) return -1;
 	/* An interrupted update may leave old/new BL33s or one invalid ToC. */
 	for (i = 0; i < 2; i++) {
 		if (tyf_parse_fip(current + offsets[i], TYF_FIP_SIZE, &old)) continue;

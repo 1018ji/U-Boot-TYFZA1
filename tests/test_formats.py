@@ -168,6 +168,20 @@ class FormatsTests(unittest.TestCase):
             current = loader(); current[off] ^= 1
             self.assertNotEqual(self.preserves(loader(), current), 0)
 
+    def test_accept_per_device_gpt_identity(self):
+        current = loader()
+        for header, entries in ((0x200, 0x400), (0x200000 - 0x200, 0x200000 - 0x4200)):
+            for off in (header + 0x10, header + 0x38, header + 0x47, header + 0x58,
+                        entries + 0x10, entries + 0x80 + 0x1f):
+                current[off] ^= 1
+        self.assertEqual(self.preserves(loader(), current), 0)
+
+    def test_reject_modified_gpt_layout(self):
+        for header, entries in ((0x200, 0x400), (0x200000 - 0x200, 0x200000 - 0x4200)):
+            for off in (header + 0x20, header + 0x48, entries, entries + 0x20, entries + 0x38):
+                current = loader(); current[off] ^= 1
+                self.assertNotEqual(self.preserves(loader(), current), 0)
+
     def test_both_board_archives(self):
         for board in ("tianyi_tyfza1", "tianyi_tyfza1-2p5g"):
             self.assertEqual(self.parse("sysupgrade", sysupgrade(board))[0], 0)
