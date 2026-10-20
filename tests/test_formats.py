@@ -10,6 +10,7 @@ import subprocess
 import tarfile
 import tempfile
 import unittest
+import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "overlay/board/realtek/tyfza1"
@@ -41,12 +42,18 @@ def fip():
 
 
 def loader():
-    buf = bytearray(b"\xff" * 0x200000)
-    buf[512:520] = b"EFI PART"
-    buf[-512:-504] = b"EFI PART"
+    # Use the real GPT geometry and checksums rather than magic bytes alone.
+    buf = bytearray((ROOT / 'evidence/stock-boot/4ge-boot.bin').read_bytes())
     fw = fip()
-    for pos in (0x40000, 0x100000): buf[pos:pos + len(fw)] = fw
+    for pos in (0x40000, 0x100000):
+        buf[pos:pos + 0xc0000] = fw + b'\xff' * (0xc0000 - len(fw))
     return buf
+
+
+def update_gpt_crcs(buf, header, entries):
+    struct.pack_into('<I', buf, header + 0x58, zlib.crc32(buf[entries:entries + 0x4000]))
+    struct.pack_into('<I', buf, header + 0x10, 0)
+    struct.pack_into('<I', buf, header + 0x10, zlib.crc32(buf[header:header + 92]))
 
 
 def sysupgrade(board="tianyi_tyfza1", extra=()):
@@ -171,15 +178,53 @@ class FormatsTests(unittest.TestCase):
     def test_accept_per_device_gpt_identity(self):
         current = loader()
         for header, entries in ((0x200, 0x400), (0x200000 - 0x200, 0x200000 - 0x4200)):
-            for off in (header + 0x10, header + 0x38, header + 0x47, header + 0x58,
+            for off in (header + 0x38, header + 0x47,
                         entries + 0x10, entries + 0x80 + 0x1f):
                 current[off] ^= 1
+            update_gpt_crcs(current, header, entries)
         self.assertEqual(self.preserves(loader(), current), 0)
+
+    def test_reject_invalid_gpt_crcs_in_current_or_candidate(self):
+        for header, entries in ((0x200, 0x400), (0x1ffe00, 0x1fbe00)):
+            for damage in ('header_crc', 'table_crc', 'disk_guid', 'partition_guid'):
+                bad = loader()
+                if damage == 'header_crc':
+                    bad[header + 0x10] ^= 1
+                elif damage == 'table_crc':
+                    bad[header + 0x58] ^= 1
+                    struct.pack_into('<I', bad, header + 0x10, 0)
+                    struct.pack_into('<I', bad, header + 0x10, zlib.crc32(bad[header:header + 92]))
+                else:
+                    bad[header + 0x38 if damage == 'disk_guid' else entries + 0x10] ^= 1
+                for candidate, current in ((loader(), bad), (bad, loader())):
+                    with self.subTest(header=header, damage=damage):
+                        self.assertNotEqual(self.preserves(candidate, current), 0)
+
+    def test_reject_unsupported_gpt_geometry(self):
+        for off, value in ((12, 0), (12, 513), (72, 0xffffffff), (80, 129), (84, 256)):
+            bad = loader()
+            struct.pack_into('<I', bad, 0x200 + off, value)
+            update_gpt_crcs(bad, 0x200, 0x400)
+            self.assertNotEqual(self.preserves(bad, bad), 0)
+
+    def test_accept_both_real_board_gpts_and_per_device_guids(self):
+        for variant in ('4ge', '2p5g'):
+            candidate = (ROOT / f'evidence/stock-boot/{variant}-boot.bin').read_bytes()
+            current = bytearray(candidate)
+            self.assertEqual(self.preserves(candidate, current), 0)
+            for header, entries in ((0x200, 0x400), (0x1ffe00, 0x1fbe00)):
+                current[header + 0x38:header + 0x48] = bytes(range(16))
+                for index in (0, 1):
+                    start = entries + index * 128 + 0x10
+                    current[start:start + 16] = bytes([index + 71]) * 16
+                update_gpt_crcs(current, header, entries)
+            self.assertEqual(self.preserves(candidate, current), 0)
 
     def test_reject_modified_gpt_layout(self):
         for header, entries in ((0x200, 0x400), (0x200000 - 0x200, 0x200000 - 0x4200)):
             for off in (header + 0x20, header + 0x48, entries, entries + 0x20, entries + 0x38):
                 current = loader(); current[off] ^= 1
+                update_gpt_crcs(current, header, entries)
                 self.assertNotEqual(self.preserves(loader(), current), 0)
 
     def test_both_board_archives(self):

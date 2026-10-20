@@ -70,6 +70,43 @@ int tyf_parse_loader(const void *data, size_t size, struct tyf_fip *out)
 	return 0;
 }
 
+static uint32_t gpt_crc32(const unsigned char *data, size_t size)
+{
+	uint32_t crc = 0xffffffffU;
+	unsigned int i;
+	while (size--) {
+		crc ^= *data++;
+		for (i = 0; i < 8; i++)
+			crc = (crc >> 1) ^ ((crc & 1) ? 0xedb88320U : 0);
+	}
+	return ~crc;
+}
+
+static uint32_t le32(const unsigned char *p)
+{
+	return (uint32_t)p[0] | (uint32_t)p[1] << 8 |
+	       (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
+}
+
+static int gpt_checksums_valid(const unsigned char *data)
+{
+	unsigned char header[92];
+	unsigned int i;
+	for (i = 0; i < 2; i++) {
+		size_t h = i ? TYF_BOOT_SIZE - 0x200 : 0x200;
+		size_t e = i ? TYF_BOOT_SIZE - 0x4200 : 0x400;
+		/* Validate the fixed GPT geometry used by the identity mask below. */
+		if (memcmp(data + h, "EFI PART", 8) || le32(data + h + 12) != sizeof(header) ||
+		    le64(data + h + 72) != e / 512 || le32(data + h + 80) != 128 ||
+		    le32(data + h + 84) != 128) return 0;
+		memcpy(header, data + h, sizeof(header));
+		memset(header + 16, 0, 4);
+		if (gpt_crc32(header, sizeof(header)) != le32(data + h + 16) ||
+		    gpt_crc32(data + e, 0x4000) != le32(data + h + 88)) return 0;
+	}
+	return 1;
+}
+
 /* GPT CRCs, disk GUID and partition GUIDs are generated per device. */
 static int gpt_unique(size_t off)
 {
@@ -102,6 +139,7 @@ int tyf_loader_preserves_device(const void *next_data, size_t next_size,
 	struct tyf_fip image, old;
 	unsigned int i, matched = 0;
 	if (current_size != TYF_BOOT_SIZE || tyf_parse_loader(next, next_size, &image) ||
+	    !gpt_checksums_valid(current) || !gpt_checksums_valid(next) ||
 	    !same_boot_layout(current, next, 0, TYF_FIP0_OFFSET) ||
 	    !same_boot_layout(current, next, 0x1c0000, TYF_BOOT_SIZE)) return -1;
 	/* An interrupted update may leave old/new BL33s or one invalid ToC. */
