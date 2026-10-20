@@ -215,7 +215,7 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 python3 scripts/test_sandbox_crypto.py
 ```
 
-提交到 `main` 自动构建并保存产物；推送与 `VERSION` 对应的版本标签（如 `v1.0`）后，自动发布 GitHub Release，仅附带 `.run` 安装包和通用 `.bin` 升级包。
+提交到 `main` 自动构建并保存产物；推送与 `VERSION` 对应的版本标签（如 `v1.1`）后，自动发布 GitHub Release，仅附带 `.run` 安装包和通用 `.bin` 升级包。
 
 ## 验证记录
 
