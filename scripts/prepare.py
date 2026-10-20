@@ -119,6 +119,14 @@ def main():
             "ident_done:\n", "ident_done:\n    mtd->size = info->size;\n")
     replace(board / "vendor/spi_nand/spi-nand-core.c", "#include <nand.h>", "#include <nand.h>\n#include <linux/mtd/rawnand.h>")
     shutil.copytree(ROOT / "overlay", dest, dirs_exist_ok=True)
+    version = (ROOT / "VERSION").read_text().strip()
+    git = ["git", "-C", str(ROOT)]
+    commit = subprocess.run([*git, "rev-parse", "--short=7", "HEAD"], capture_output=True, text=True).stdout.strip()
+    if commit:
+        version += f"-{commit}"
+    else:
+        print("Git metadata unavailable; version has no commit suffix")
+    replace(dest / "configs/tyfza1_defconfig", 'CONFIG_IDENT_STRING=" TYFZA1"', f'CONFIG_IDENT_STRING=" TYFZA1 {version}"')
     # Preserve the complete frontend while reducing the two-FIP flash footprint.
     http = dest / "net/lwip/httpd.c"
     shutil.copy2(reference_path := ROOT / "sources" / lock["reference"]["directory"] / "net/lwip/httpd.c", http)
@@ -176,6 +184,15 @@ def main():
 \t\ttyfza1_restore_job("restore-cancel", 0, 0, 0, 0, tyfza1_restore_status()->id, service_network);
 #endif
 \thttp_netif = NULL;''')
+    replace(http, '\t\tjson_printf(&j, "{\\"model\\":"); json_string(&j, board);', '''\t\tjson_printf(&j, "{\\"model\\":"); json_string(&j, board);
+#if defined(CONFIG_TARGET_TYFZA1)
+\t\t{
+\t\t\tconst char *variant = env_get("board_variant") ?: "";
+\t\t\tjson_printf(&j, ",\\"ports\\":");
+\t\t\tjson_string(&j, !strcmp(variant, "4ge") ? "4×GE" :
+\t\t\t\t    !strcmp(variant, "2p5g") ? "2.5GE + 3×GE" : "");
+\t\t}
+#endif''')
     replace(http, '#define HTTPD_UBI_PART\t\t"ubi"', '#define HTTPD_UBI_PART\t\t"ubi_device"')
     replace(http, '"airoha,an758x-recovery-layout"', '"tianyi,tyfza1-recovery-layout"')
     replace(http, "\thttp_netif = netif;\n\tbuild_info();",
