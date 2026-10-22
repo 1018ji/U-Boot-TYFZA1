@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Prepare pinned U-Boot sources without modifying either upstream checkout."""
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -16,6 +17,20 @@ def replace(path, old, new):
     if old not in text:
         raise RuntimeError(f"Source contract changed: {path}: {old!r}")
     path.write_text(text.replace(old, new))
+
+
+def build_identity(root):
+    version = (root / "VERSION").read_text().strip()
+    if not re.fullmatch(r"[0-9]+\.[0-9]+", version):
+        raise ValueError("VERSION must have two components, for example 1.1")
+    git = ["git", "-C", str(root)]
+    top = subprocess.run([*git, "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+    if top.returncode or Path(top.stdout.strip()).resolve() != root.resolve():
+        return version, ""
+    commit = subprocess.check_output([*git, "rev-parse", "--short=7", "HEAD"], text=True).strip()
+    if subprocess.check_output([*git, "status", "--porcelain", "--untracked-files=normal"], text=True):
+        commit += "-dirty"
+    return version, commit
 
 
 def main():
@@ -109,7 +124,11 @@ def main():
     replace(board / "vendor/eth_ni.c", "//ni_enable_tx_rx(priv->active_port, 0);", "if (is_valid_port(priv, priv->active_port))\n\t\tni_enable_tx_rx(priv->active_port, 0);")
     replace(board / "vendor/eth_ni.c", '\t/*\n\tif ((buf = env_get("auto_scan_active_port")) != 0) {\n\t\tactive_scan = simple_strtoul(buf, NULL, 0);\n\t\tprintf(MODULE_NAME": env active_scan=%d\\n", active_scan);\n\t\tpriv->active_scan = active_scan;\n\t}\n\t*/', '\tif ((buf = env_get("auto_scan_active_port")) != 0) {\n\t\tactive_scan = simple_strtoul(buf, NULL, 0);\n\t\tpriv->active_scan = !!active_scan;\n\t}')
     replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "#include <watchdog.h>", "#include <u-boot/schedule.h>")
-    replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "WATCHDOG_RESET();", "schedule();")
+    # Recovery lamps: redraw in NAND loops and count written bytes for the progress bar.
+    replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "#include <u-boot/schedule.h>", "#include <u-boot/schedule.h>\n#include <tyfza1_recovery.h>")
+    replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "WATCHDOG_RESET();", "schedule();\n\t\ttyfza1_recovery_leds_poll();")
+    replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "            ops->retlen += size_d;\n", "            ops->retlen += size_d;\n            tyfza1_recovery_leds_progress(size_d);\n")
+    replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "    \t\tops->retlen += size;\n    \t\twritelen -= size;\n", "    \t\tops->retlen += size;\n    \t\ttyfza1_recovery_leds_progress(size);\n    \t\twritelen -= size;\n")
     replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "(corrected >= (info->ecc_strength-2))", "(*corrected >= (info->ecc_strength-2))")
     replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "int timeout = start + CONFIG_SYS_HZ;", "int timeout = CONFIG_SYS_HZ;")
     replace(board / "vendor/spi_nand/cortina_spi_nand_base.c",
@@ -119,6 +138,11 @@ def main():
             "ident_done:\n", "ident_done:\n    mtd->size = info->size;\n")
     replace(board / "vendor/spi_nand/spi-nand-core.c", "#include <nand.h>", "#include <nand.h>\n#include <linux/mtd/rawnand.h>")
     shutil.copytree(ROOT / "overlay", dest, dirs_exist_ok=True)
+    version, commit = build_identity(ROOT)
+    replace(dest / "configs/tyfza1_defconfig", 'CONFIG_IDENT_STRING=" TYFZA1"', f'CONFIG_IDENT_STRING=" TYFZA1 {version}"')
+    (dest / "include/tyfza1_build.h").write_text(
+        f"#define TYFZA1_PROJECT_VERSION {json.dumps(version)}\n"
+        f"#define TYFZA1_BUILD_COMMIT {json.dumps(commit)}\n")
     # Preserve the complete frontend while reducing the two-FIP flash footprint.
     http = dest / "net/lwip/httpd.c"
     shutil.copy2(reference_path := ROOT / "sources" / lock["reference"]["directory"] / "net/lwip/httpd.c", http)
@@ -128,7 +152,7 @@ def main():
     compressed = gzip.compress(raw, mtime=0)
     page.write_bytes(b"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Encoding: gzip\r\nConnection: close\r\nContent-Length: " + str(len(compressed)).encode() + b"\r\n\r\n" + compressed)
     replace(http, "fs_set_data(file, httpd_page, httpd_page_size);", "fs_set_data(file, httpd_page, httpd_page_size);\n\t\tfile->flags = FS_FILE_FLAGS_HEADER_INCLUDED;")
-    replace(http, '#include <net/httpd.h>', '#include <net/httpd.h>\n#include <tyfza1_recovery.h>')
+    replace(http, '#include <net/httpd.h>', '#include <net/httpd.h>\n#include <tyfza1_recovery.h>\n#include <tyfza1_build.h>')
     replace(http, '"httpd_ipaddr", "httpd_netmask",', '"httpd_ipaddr", "httpd_netmask", "httpd_dhcp",')
     replace(http, '\tif (httpd_running)\n\t\treturn 0;', '\tif (httpd_running)\n\t\treturn 0;\n\tif (env_get_yesno("httpd_dhcp") == 0) with_dhcp = false;')
     replace(http, '\t\tret = env_set(env_key, env_value[0] ? env_value : NULL);', '''\t\t/* Accept the familiar IP names as persistent recovery settings, too. */
@@ -176,6 +200,23 @@ def main():
 \t\ttyfza1_restore_job("restore-cancel", 0, 0, 0, 0, tyfza1_restore_status()->id, service_network);
 #endif
 \thttp_netif = NULL;''')
+    replace(http, '\t\tjson_printf(&j, "{\\"model\\":"); json_string(&j, board);', '''\t\tjson_printf(&j, "{\\"model\\":"); json_string(&j, board);
+#if defined(CONFIG_TARGET_TYFZA1)
+\t\t{
+\t\t\tconst char *variant = env_get("board_variant") ?: "";
+\t\t\tjson_printf(&j, ",\\"project_version\\":"); json_string(&j, TYFZA1_PROJECT_VERSION);
+\t\t\tjson_printf(&j, ",\\"build_commit\\":"); json_string(&j, TYFZA1_BUILD_COMMIT);
+\t\t\tjson_printf(&j, ",\\"ports\\":");
+\t\t\tjson_string(&j, !strcmp(variant, "4ge") ? "4×GE" :
+\t\t\t\t    !strcmp(variant, "2p5g") ? "2.5GE + 3×GE" : "");
+\t\t}
+#endif''')
+    # Recovery lamps follow the HTTP loop and job results.
+    replace(http, "static void service_network(void)\n{", "static void service_network(void)\n{\n#if defined(CONFIG_TARGET_TYFZA1)\n\ttyfza1_recovery_leds_poll();\n#endif")
+    replace(http, "\tjob_result = run_captured_job();", "#if defined(CONFIG_TARGET_TYFZA1)\n\tjob_result = tyf_http_run_job();\n#else\n\tjob_result = run_captured_job();\n#endif")
+    replace(http, "\tled_activity_blink();\n\tstop_requested = false;", "\tled_activity_blink();\n#if defined(CONFIG_TARGET_TYFZA1)\n\ttyfza1_recovery_leds(TYFZA1_LEDS_IDLE);\n#endif\n\tstop_requested = false;")
+    replace(http, "\t\tprocess_job();\n\t}", "\t\tprocess_job();\n#if defined(CONFIG_TARGET_TYFZA1)\n\t\ttyf_http_leds_poll();\n#endif\n\t}")
+    replace(http, "\tled_activity_on();\n\tclear_ctrlc();\n\treturn ret", "#if defined(CONFIG_TARGET_TYFZA1)\n\ttyfza1_recovery_leds(TYFZA1_LEDS_OFF);\n#endif\n\tled_activity_on();\n\tclear_ctrlc();\n\treturn ret")
     replace(http, '#define HTTPD_UBI_PART\t\t"ubi"', '#define HTTPD_UBI_PART\t\t"ubi_device"')
     replace(http, '"airoha,an758x-recovery-layout"', '"tianyi,tyfza1-recovery-layout"')
     replace(http, "\thttp_netif = netif;\n\tbuild_info();",
