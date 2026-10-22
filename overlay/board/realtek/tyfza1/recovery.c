@@ -278,6 +278,11 @@ out:
 	return ret;
 }
 
+size_t tyfza1_loader_write_size(void)
+{
+	return 2 * TYF_FIP_SIZE;
+}
+
 int tyfza1_install_loader(ulong address, size_t size, bool bl2, void (*poll)(void))
 {
 	const unsigned char *input;

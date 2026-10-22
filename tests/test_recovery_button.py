@@ -24,6 +24,9 @@ static bool reset_requested;
 static int button_state, http_result, http_calls, dhcp, policy=1, boot_disabled, lights;
 static int tyfza1_reset_held(void) {return button_state;}
 static void tyfza1_boot_leds(void) {lights++;}
+enum tyfza1_leds { TYFZA1_LEDS_OFF, TYFZA1_LEDS_HELD };
+static int lamp_trace[4], lamp_steps;
+static void tyfza1_recovery_leds(enum tyfza1_leds state) {if(lamp_steps<4)lamp_trace[lamp_steps++]=state;}
 static int env_get_yesno(const char *name) {(void)name;return policy;}
 static int env_set(const char *name,const char *value) {
  if(!strcmp(name,"bootcmd") && !value[0])boot_disabled=1;return 0;
@@ -34,7 +37,7 @@ static int uboot_httpd_start(bool with_dhcp) {
 '''
         tail = r'''
 int test_button(int latched, int state, int result) {
- reset_requested=latched;button_state=state;http_result=result;http_calls=0;dhcp=0;boot_disabled=lights=0;
+ reset_requested=latched;button_state=state;http_result=result;http_calls=0;dhcp=0;boot_disabled=lights=lamp_steps=0;
  return tyfza1_recovery_button();
 }
 int test_http_calls(void) { return http_calls; }
@@ -42,6 +45,7 @@ int test_dhcp(void) { return dhcp; }
 void test_policy(int value) {policy=value;}
 int test_boot_disabled(void) {return boot_disabled;}
 int test_lights(void) {return lights;}
+int test_lamp(int i) {return i<lamp_steps?lamp_trace[i]:-1;}
 '''
         path=work/'button.c';path.write_text(prelude+body+tail)
         library=work/'button.so'
@@ -85,6 +89,13 @@ int test_lights(void) {return lights;}
         for state in (0,1):
             self.lib.test_button(0,state,0)
             self.assertEqual(self.lib.test_lights(),1)
+
+    def test_held_reset_lights_lamps_then_releases_them(self):
+        for latched,state in ((1,0),(0,1)):
+            self.lib.test_button(latched,state,0)
+            self.assertEqual([self.lib.test_lamp(i) for i in range(3)],[1,0,-1])
+        self.lib.test_button(0,0,0)
+        self.assertEqual(self.lib.test_lamp(0),-1)
 
     def test_http_failure_is_reported(self):
         self.assertEqual(self.lib.test_button(0,1,-110),0)

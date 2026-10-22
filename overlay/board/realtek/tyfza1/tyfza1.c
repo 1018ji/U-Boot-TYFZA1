@@ -73,6 +73,7 @@ int board_init(void)
 void board_preboot_os(void)
 {
 	unsigned int i;
+	tyfza1_recovery_leds(TYFZA1_LEDS_OFF);
 	/* Match the stock handoff: stop all NI MACs and return XRAM to its entry state. */
 	for (i = 0; i < 6; i++)
 		clrbits_le32(0xf430a5c8 + i * 0x90, 1);
@@ -110,6 +111,8 @@ int board_late_init(void)
 	env_set("bootmenu_0", "Start OpenWrt=tyfboot; tyfrecovery");
 	env_set("bootmenu_1", "Web recovery=tyfrecovery");
 	env_set("boot_production", "tyfboot");
+	/* Reset was latched in board_init; board_variant selects the lamp pins. */
+	if (reset_requested) tyfza1_recovery_leds(TYFZA1_LEDS_HELD);
 	return 0;
 }
 
@@ -148,6 +151,7 @@ static int tyfza1_recovery_button(void)
 {
 	int ret;
 	reset_requested |= tyfza1_reset_held();
+	if (reset_requested) tyfza1_recovery_leds(TYFZA1_LEDS_HELD);
 	tyfza1_boot_leds();
 	if (!reset_requested) {
 		puts("Reset released: normal boot\n");
@@ -157,6 +161,7 @@ static int tyfza1_recovery_button(void)
 	env_set("bootcmd", "");
 	puts("Reset held: starting TYFZA1 HTTP recovery\n");
 	ret = uboot_httpd_start(env_get_yesno("httpd_dhcp") != 0);
+	tyfza1_recovery_leds(TYFZA1_LEDS_OFF);
 	if (ret) printf("Recovery network failed (%d); use tyfrecovery to retry.\n", ret);
 	return 0;
 }

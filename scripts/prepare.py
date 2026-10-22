@@ -109,7 +109,11 @@ def main():
     replace(board / "vendor/eth_ni.c", "//ni_enable_tx_rx(priv->active_port, 0);", "if (is_valid_port(priv, priv->active_port))\n\t\tni_enable_tx_rx(priv->active_port, 0);")
     replace(board / "vendor/eth_ni.c", '\t/*\n\tif ((buf = env_get("auto_scan_active_port")) != 0) {\n\t\tactive_scan = simple_strtoul(buf, NULL, 0);\n\t\tprintf(MODULE_NAME": env active_scan=%d\\n", active_scan);\n\t\tpriv->active_scan = active_scan;\n\t}\n\t*/', '\tif ((buf = env_get("auto_scan_active_port")) != 0) {\n\t\tactive_scan = simple_strtoul(buf, NULL, 0);\n\t\tpriv->active_scan = !!active_scan;\n\t}')
     replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "#include <watchdog.h>", "#include <u-boot/schedule.h>")
-    replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "WATCHDOG_RESET();", "schedule();")
+    # Recovery lamps: redraw in NAND loops and count written bytes for the progress bar.
+    replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "#include <u-boot/schedule.h>", "#include <u-boot/schedule.h>\n#include <tyfza1_recovery.h>")
+    replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "WATCHDOG_RESET();", "schedule();\n\t\ttyfza1_recovery_leds_poll();")
+    replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "            ops->retlen += size_d;\n", "            ops->retlen += size_d;\n            tyfza1_recovery_leds_progress(size_d);\n")
+    replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "    \t\tops->retlen += size;\n    \t\twritelen -= size;\n", "    \t\tops->retlen += size;\n    \t\ttyfza1_recovery_leds_progress(size);\n    \t\twritelen -= size;\n")
     replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "(corrected >= (info->ecc_strength-2))", "(*corrected >= (info->ecc_strength-2))")
     replace(board / "vendor/spi_nand/cortina_spi_nand_base.c", "int timeout = start + CONFIG_SYS_HZ;", "int timeout = CONFIG_SYS_HZ;")
     replace(board / "vendor/spi_nand/cortina_spi_nand_base.c",
@@ -193,6 +197,12 @@ def main():
 \t\t\t\t    !strcmp(variant, "2p5g") ? "2.5GE + 3×GE" : "");
 \t\t}
 #endif''')
+    # Recovery lamps follow the HTTP loop and job results.
+    replace(http, "static void service_network(void)\n{", "static void service_network(void)\n{\n#if defined(CONFIG_TARGET_TYFZA1)\n\ttyfza1_recovery_leds_poll();\n#endif")
+    replace(http, "\tjob_result = run_captured_job();", "#if defined(CONFIG_TARGET_TYFZA1)\n\tjob_result = tyf_http_run_job();\n#else\n\tjob_result = run_captured_job();\n#endif")
+    replace(http, "\tled_activity_blink();\n\tstop_requested = false;", "\tled_activity_blink();\n#if defined(CONFIG_TARGET_TYFZA1)\n\ttyfza1_recovery_leds(TYFZA1_LEDS_IDLE);\n#endif\n\tstop_requested = false;")
+    replace(http, "\t\tprocess_job();\n\t}", "\t\tprocess_job();\n#if defined(CONFIG_TARGET_TYFZA1)\n\t\ttyf_http_leds_poll();\n#endif\n\t}")
+    replace(http, "\tled_activity_on();\n\tclear_ctrlc();\n\treturn ret", "#if defined(CONFIG_TARGET_TYFZA1)\n\ttyfza1_recovery_leds(TYFZA1_LEDS_OFF);\n#endif\n\tled_activity_on();\n\tclear_ctrlc();\n\treturn ret")
     replace(http, '#define HTTPD_UBI_PART\t\t"ubi"', '#define HTTPD_UBI_PART\t\t"ubi_device"')
     replace(http, '"airoha,an758x-recovery-layout"', '"tianyi,tyfza1-recovery-layout"')
     replace(http, "\thttp_netif = netif;\n\tbuild_info();",

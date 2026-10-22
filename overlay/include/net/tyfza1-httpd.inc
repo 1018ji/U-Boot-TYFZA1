@@ -48,3 +48,66 @@ static bool tyf_http_upload_safe(ulong address, size_t size)
 		if (address < reserved[i].end && address + size > reserved[i].begin) return false;
 	return true;
 }
+
+static int run_captured_job(void);
+
+static bool tyf_http_job_writes(void)
+{
+	switch (job_kind) {
+	case HTTP_JOB_BL2: case HTTP_JOB_FIP: case HTTP_JOB_BOARD_DATA:
+	case HTTP_JOB_REBUILD: case HTTP_JOB_FIRMWARE: case HTTP_JOB_FLASH_ALL:
+	case HTTP_JOB_NAND_SCRUB:
+		return true;
+	case HTTP_JOB_STORAGE:
+		return storage_request.operation == HTTP_STORAGE_OP_WRITE;
+	case HTTP_JOB_TYF_RESTORE:
+		return !strcmp(tyf_restore_operation, "restore-chunk") ||
+		       !strcmp(tyf_restore_operation, "restore-finish");
+	default:
+		return false;
+	}
+}
+
+/* Expected NAND bytes for the progress bar; 0 when unknown. */
+static size_t tyf_http_write_size(void)
+{
+	if (job_kind == HTTP_JOB_FIP) return tyfza1_loader_write_size();
+	if (job_kind == HTTP_JOB_REBUILD || job_kind == HTTP_JOB_NAND_SCRUB) return 0;
+	return buffer_size;
+}
+
+static int tyf_http_run_job(void)
+{
+	const struct tyfza1_restore_status *restore = tyfza1_restore_status();
+	bool writes = tyf_http_job_writes();
+	int ret;
+	if (writes && restore->active)
+		tyfza1_recovery_leds_busy(restore->next, restore->total);
+	else if (writes)
+		tyfza1_recovery_leds_busy(0, tyf_http_write_size());
+	ret = run_captured_job();
+	if (ret && writes)
+		tyfza1_recovery_leds(TYFZA1_LEDS_FAILED);
+	else if (restore->active)
+		/* Power loss between restore chunks is unsafe, so keep the bar up. */
+		tyfza1_recovery_leds_busy(restore->next, restore->total);
+	else if (writes)
+		tyfza1_recovery_leds(TYFZA1_LEDS_DONE);
+	else
+		/* Also reclaims the lamps if a failed boot action released them. */
+		tyfza1_recovery_leds(TYFZA1_LEDS_IDLE);
+	return ret;
+}
+
+static void tyf_http_leds_poll(void)
+{
+	static bool uploading;
+	bool upload = post_state.connection && (post_state.kind == HTTP_POST_UPLOAD ||
+						post_state.kind == HTTP_POST_FLASH_ALL_UPLOAD);
+	if (upload != uploading) {
+		uploading = upload;
+		if (!tyfza1_restore_status()->active)
+			tyfza1_recovery_leds(upload ? TYFZA1_LEDS_UPLOAD : TYFZA1_LEDS_IDLE);
+	}
+	tyfza1_recovery_leds_poll();
+}
