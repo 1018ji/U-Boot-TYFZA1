@@ -1,6 +1,8 @@
 name: Build TYFZA1 U-Boot
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
     tags: ['v*']
@@ -45,6 +47,7 @@ jobs:
       - name: Test production code
         run: |
           python3 -m unittest discover -s tests -p 'test_*.py'
+          node tests/frontend_test.js
           python3 scripts/test_sandbox_crypto.py
           for variant in 4ge 2p5g; do
             sh output/release/tyfza1-uboot-install.run --check "inputs/$variant-boot.bin"

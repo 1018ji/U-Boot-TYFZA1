@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Prepare pinned U-Boot sources without modifying either upstream checkout."""
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -16,6 +17,20 @@ def replace(path, old, new):
     if old not in text:
         raise RuntimeError(f"Source contract changed: {path}: {old!r}")
     path.write_text(text.replace(old, new))
+
+
+def build_identity(root):
+    version = (root / "VERSION").read_text().strip()
+    if not re.fullmatch(r"[0-9]+\.[0-9]+", version):
+        raise ValueError("VERSION must have two components, for example 1.1")
+    git = ["git", "-C", str(root)]
+    top = subprocess.run([*git, "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+    if top.returncode or Path(top.stdout.strip()).resolve() != root.resolve():
+        return version, ""
+    commit = subprocess.check_output([*git, "rev-parse", "--short=7", "HEAD"], text=True).strip()
+    if subprocess.check_output([*git, "status", "--porcelain", "--untracked-files=normal"], text=True):
+        commit += "-dirty"
+    return version, commit
 
 
 def main():
@@ -123,14 +138,11 @@ def main():
             "ident_done:\n", "ident_done:\n    mtd->size = info->size;\n")
     replace(board / "vendor/spi_nand/spi-nand-core.c", "#include <nand.h>", "#include <nand.h>\n#include <linux/mtd/rawnand.h>")
     shutil.copytree(ROOT / "overlay", dest, dirs_exist_ok=True)
-    version = (ROOT / "VERSION").read_text().strip()
-    git = ["git", "-C", str(ROOT)]
-    commit = subprocess.run([*git, "rev-parse", "--short=7", "HEAD"], capture_output=True, text=True).stdout.strip()
-    if commit:
-        version += f"-{commit}"
-    else:
-        print("Git metadata unavailable; version has no commit suffix")
+    version, commit = build_identity(ROOT)
     replace(dest / "configs/tyfza1_defconfig", 'CONFIG_IDENT_STRING=" TYFZA1"', f'CONFIG_IDENT_STRING=" TYFZA1 {version}"')
+    (dest / "include/tyfza1_build.h").write_text(
+        f"#define TYFZA1_PROJECT_VERSION {json.dumps(version)}\n"
+        f"#define TYFZA1_BUILD_COMMIT {json.dumps(commit)}\n")
     # Preserve the complete frontend while reducing the two-FIP flash footprint.
     http = dest / "net/lwip/httpd.c"
     shutil.copy2(reference_path := ROOT / "sources" / lock["reference"]["directory"] / "net/lwip/httpd.c", http)
@@ -140,7 +152,7 @@ def main():
     compressed = gzip.compress(raw, mtime=0)
     page.write_bytes(b"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Encoding: gzip\r\nConnection: close\r\nContent-Length: " + str(len(compressed)).encode() + b"\r\n\r\n" + compressed)
     replace(http, "fs_set_data(file, httpd_page, httpd_page_size);", "fs_set_data(file, httpd_page, httpd_page_size);\n\t\tfile->flags = FS_FILE_FLAGS_HEADER_INCLUDED;")
-    replace(http, '#include <net/httpd.h>', '#include <net/httpd.h>\n#include <tyfza1_recovery.h>')
+    replace(http, '#include <net/httpd.h>', '#include <net/httpd.h>\n#include <tyfza1_recovery.h>\n#include <tyfza1_build.h>')
     replace(http, '"httpd_ipaddr", "httpd_netmask",', '"httpd_ipaddr", "httpd_netmask", "httpd_dhcp",')
     replace(http, '\tif (httpd_running)\n\t\treturn 0;', '\tif (httpd_running)\n\t\treturn 0;\n\tif (env_get_yesno("httpd_dhcp") == 0) with_dhcp = false;')
     replace(http, '\t\tret = env_set(env_key, env_value[0] ? env_value : NULL);', '''\t\t/* Accept the familiar IP names as persistent recovery settings, too. */
@@ -192,6 +204,8 @@ def main():
 #if defined(CONFIG_TARGET_TYFZA1)
 \t\t{
 \t\t\tconst char *variant = env_get("board_variant") ?: "";
+\t\t\tjson_printf(&j, ",\\"project_version\\":"); json_string(&j, TYFZA1_PROJECT_VERSION);
+\t\t\tjson_printf(&j, ",\\"build_commit\\":"); json_string(&j, TYFZA1_BUILD_COMMIT);
 \t\t\tjson_printf(&j, ",\\"ports\\":");
 \t\t\tjson_string(&j, !strcmp(variant, "4ge") ? "4×GE" :
 \t\t\t\t    !strcmp(variant, "2p5g") ? "2.5GE + 3×GE" : "");

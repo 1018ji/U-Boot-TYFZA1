@@ -160,8 +160,7 @@ async function refresh(){
  const ports=el('ports'),unknown=d.ports==='';
  if(unknown)ports.dataset.t='unknownBoard';else delete ports.dataset.t;
  text('ports',unknown?t('unknownBoard'):d.ports||'');
- const release=/ TYFZA1 (\S+?)(?:-([0-9a-f]{7,}))?$/.exec(d.version||'');
- text('version',release?release[1]:d.version||'—');text('commit',release&&release[2]||'');
+ text('version',d.project_version||d.version||'—');text('commit',d.build_commit||'');
  flashBytes=d.flash_bytes;
  const hasBl2=targets.some(v=>v.kind==='mtd'&&v.name==='bl2');
  el('bl2Section').hidden=!hasBl2;el('ubiSection').hidden=!d.ubi;
