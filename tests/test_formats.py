@@ -220,9 +220,55 @@ class FormatsTests(unittest.TestCase):
                 update_gpt_crcs(current, header, entries)
             self.assertEqual(self.preserves(candidate, current), 0)
 
+    def test_accept_stock_fip_lengths_from_reported_4ge_boot(self):
+        candidate = loader()
+        current = bytearray(candidate)
+        # V1.0.5 report: identical BL2/BL31, shorter OEM BL33 and GPT FIP lengths.
+        for header, entries in ((0x200, 0x400), (0x1ffe00, 0x1fbe00)):
+            for index, last in enumerate((0x79e, 0xd9e)):
+                struct.pack_into('<Q', current, entries + index * 128 + 0x28, last)
+            update_gpt_crcs(current, header, entries)
+        self.assertEqual(self.preserves(candidate, current), 0)
+
+    def test_reject_fip_gpt_lengths_outside_slots_or_too_short(self):
+        candidate = (ROOT / 'evidence/stock-boot/4ge-boot.bin').read_bytes()
+        for index, start in enumerate((0x200, 0x800)):
+            for last in (start - 1, start, start + 0x600, 2**64 - 1):
+                bad = bytearray(candidate)
+                for header, entries in ((0x200, 0x400), (0x1ffe00, 0x1fbe00)):
+                    struct.pack_into('<Q', bad, entries + index * 128 + 0x28, last)
+                    update_gpt_crcs(bad, header, entries)
+                with self.subTest(index=index, last=last):
+                    self.assertNotEqual(self.preserves(candidate, bad), 0)
+                    self.assertNotEqual(self.preserves(bad, bad), 0)
+
+    def test_reject_different_primary_and_backup_fip_lengths(self):
+        current = loader()
+        struct.pack_into('<Q', current, 0x400 + 0x28, 0x79e)
+        update_gpt_crcs(current, 0x200, 0x400)
+        self.assertNotEqual(self.preserves(loader(), current), 0)
+
+    def test_fip_gpt_capacity_includes_last_payload_and_sector_rounding(self):
+        candidate = (ROOT / 'evidence/stock-boot/4ge-boot.bin').read_bytes()
+        used = 0
+        for pos in range(0x40000 + 16, 0x40000 + 16 + 32 * 40, 40):
+            uid, offset, length, _ = struct.unpack_from('<16sQQQ', candidate, pos)
+            if uid == bytes(16): break
+            used = max(used, offset + length)
+        for shorten, expected in ((0, 0), (1, -1)):
+            current = bytearray(candidate)
+            for header, entries in ((0x200, 0x400), (0x1ffe00, 0x1fbe00)):
+                for index, first in enumerate((0x200, 0x800)):
+                    last = first + (used + 511) // 512 - 1 - shorten
+                    struct.pack_into('<Q', current, entries + index * 128 + 0x28, last)
+                update_gpt_crcs(current, header, entries)
+            with self.subTest(shorten=shorten):
+                self.assertEqual(self.preserves(candidate, current), expected)
+
     def test_reject_modified_gpt_layout(self):
         for header, entries in ((0x200, 0x400), (0x200000 - 0x200, 0x200000 - 0x4200)):
-            for off in (header + 0x20, header + 0x48, entries, entries + 0x20, entries + 0x38):
+            for off in (header + 0x20, header + 0x48, entries, entries + 0x20,
+                        entries + 0x30, entries + 0x38, entries + 2 * 128 + 0x28):
                 current = loader(); current[off] ^= 1
                 update_gpt_crcs(current, header, entries)
                 self.assertNotEqual(self.preserves(loader(), current), 0)

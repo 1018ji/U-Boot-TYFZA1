@@ -4,8 +4,10 @@
 import ctypes as C
 from pathlib import Path
 import subprocess
+import struct
 import tempfile
 import unittest
+import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
 BLOCK, BOOT = 0x20000, 0x200000
@@ -49,6 +51,17 @@ int test_write(int fd, const unsigned char *data, int mode) {
 }
 int test_erases(void) { return erases; }
 unsigned int test_offset(int i) { return offsets[i]; }
+int test_select(const unsigned char *bundle, const unsigned char *current) {
+ struct tyf_payload selected;
+ const char *variant = select_board(bundle, current, &selected);
+ return variant ? strcmp(variant, "4ge") != 0 : -1;
+}
+int test_install(int fd, const unsigned char *bundle, const unsigned char *current) {
+ struct tyf_payload selected;
+ fault = erases = 0;
+ if (!select_board(bundle, current, &selected)) return -1;
+ return write_fips(fd, selected.data);
+}
 ''')
         board = ROOT / 'overlay/board/realtek/tyfza1'
         library = work / 'flasher.so'
@@ -57,6 +70,8 @@ unsigned int test_offset(int i) { return offsets[i]; }
                         str(board/'certificates.c'), str(ROOT/'tests/certificate_openssl.c'),
                         '-lcrypto', '-o', str(library)], check=True)
         cls.lib = C.CDLL(str(library)); cls.lib.test_write.argtypes = [C.c_int, C.c_void_p, C.c_int]
+        cls.lib.test_select.argtypes = [C.c_void_p, C.c_void_p]
+        cls.lib.test_install.argtypes = [C.c_int, C.c_void_p, C.c_void_p]
         cls.image = bytes((i//BLOCK + 1) % 256 for i in range(BOOT))
         cls.buffer = C.create_string_buffer(cls.image)
 
@@ -68,6 +83,59 @@ unsigned int test_offset(int i) { return offsets[i]; }
             flash.seek(0); after = flash.read()
         offsets = [self.lib.test_offset(i) for i in range(self.lib.test_erases())]
         return result, offsets, original, after
+
+    def stock_with_reported_lengths(self, variant):
+        current = bytearray((ROOT / f'evidence/stock-boot/{variant}-boot.bin').read_bytes())
+        for header, entries in ((0x200, 0x400), (0x1ffe00, 0x1fbe00)):
+            for index, last in enumerate((0x79e, 0xd9e)):
+                struct.pack_into('<Q', current, entries + index * 128 + 0x28, last)
+            struct.pack_into('<I', current, header + 88, zlib.crc32(current[entries:entries + 0x4000]))
+            struct.pack_into('<I', current, header + 16, 0)
+            struct.pack_into('<I', current, header + 16, zlib.crc32(current[header:header + 92]))
+        return bytes(current)
+
+    def test_board_selection_with_reported_oem_fip_lengths(self):
+        bundle = (ROOT / 'output/release/tyfza1-uboot-universal.bin').read_bytes()
+        for variant, expected in (('4ge', 0), ('2p5g', 1)):
+            current = self.stock_with_reported_lengths(variant)
+            with self.subTest(variant=variant):
+                self.assertEqual(self.lib.test_select(C.create_string_buffer(bundle),
+                                 C.create_string_buffer(current)), expected)
+
+    def test_install_with_oem_lengths_preserves_gpt_and_remains_updatable(self):
+        bundle = (ROOT / 'output/release/tyfza1-uboot-universal.bin').read_bytes()
+        for variant, index in (('4ge', 0), ('2p5g', 1)):
+            before = self.stock_with_reported_lengths(variant)
+            image = bundle[16 + index * BOOT:16 + (index + 1) * BOOT]
+            with self.subTest(variant=variant), tempfile.TemporaryFile() as flash:
+                flash.write(before); flash.flush()
+                self.assertEqual(self.lib.test_install(flash.fileno(), C.create_string_buffer(bundle),
+                                 C.create_string_buffer(before)), 0)
+                offsets = [self.lib.test_offset(i) for i in range(self.lib.test_erases())]
+                self.assertEqual(offsets, FIPS)
+                flash.seek(0); after = flash.read()
+                expected = bytearray(before)
+                for off in FIPS: expected[off:off+BLOCK] = image[off:off+BLOCK]
+                self.assertEqual(after, expected)
+                self.assertEqual(self.lib.test_select(C.create_string_buffer(bundle),
+                                 C.create_string_buffer(after)), index)
+
+    def test_bad_package_signature_stops_before_any_erase(self):
+        original = (ROOT / 'output/release/tyfza1-uboot-universal.bin').read_bytes()
+        before = self.stock_with_reported_lengths('4ge')
+        for index in (0, 1):
+            damaged = bytearray(original)
+            for off in (0x40000, 0x100000):
+                base = 16 + index * BOOT + off
+                # Damage a certificate while keeping both copies' boot payloads intact.
+                _, offset, length, _ = struct.unpack_from('<16sQQQ', damaged, base + 16 + 8 * 40)
+                damaged[base + offset + length - 1] ^= 1
+            with self.subTest(index=index), tempfile.TemporaryFile() as flash:
+                flash.write(before); flash.flush()
+                self.assertNotEqual(self.lib.test_install(flash.fileno(), C.create_string_buffer(bytes(damaged)),
+                                    C.create_string_buffer(before)), 0)
+                self.assertEqual(self.lib.test_erases(), 0)
+                flash.seek(0); self.assertEqual(flash.read(), before)
 
     def test_secondary_first_and_only_fip_ranges_changed(self):
         result, offsets, before, after = self.run_write(0)

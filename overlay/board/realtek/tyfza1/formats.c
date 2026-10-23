@@ -107,8 +107,34 @@ static int gpt_checksums_valid(const unsigned char *data)
 	return 1;
 }
 
-/* GPT CRCs, disk GUID and partition GUIDs are generated per device. */
-static int gpt_unique(size_t off)
+static int gpt_fip_sizes_valid(const unsigned char *data, const unsigned char *next)
+{
+	const size_t offsets[] = { TYF_FIP0_OFFSET, TYF_FIP1_OFFSET };
+	const size_t tables[] = { 0x400, TYF_BOOT_SIZE - 0x4200 };
+	unsigned int i, j;
+	for (i = 0; i < 2; i++) {
+		const unsigned char *fip = next + offsets[i];
+		uint64_t used = 0;
+		size_t pos;
+		/* next has already passed tyf_parse_loader(), including ToC bounds. */
+		for (pos = 16; !zeros(fip + pos, 16); pos += 40) {
+			uint64_t end = le64(fip + pos + 16) + le64(fip + pos + 24);
+			if (end > used) used = end;
+		}
+		for (j = 0; j < 2; j++) {
+			const unsigned char *entry = data + tables[j] + i * 128;
+			uint64_t first = le64(entry + 32), last = le64(entry + 40);
+			if (first != offsets[i] / 512 || last < first ||
+			    last >= (offsets[i] + TYF_FIP_SIZE) / 512 ||
+			    last - first + 1 < (used + 511) / 512 ||
+			    last != le64(data + tables[0] + i * 128 + 40)) return 0;
+		}
+	}
+	return 1;
+}
+
+/* GUIDs/CRCs vary per device; bounded FIP lengths vary with the OEM build. */
+static int gpt_variable(size_t off)
 {
 	static const size_t headers[] = { 0x200, TYF_BOOT_SIZE - 0x200 };
 	static const size_t entries[] = { 0x400, TYF_BOOT_SIZE - 0x4200 };
@@ -117,6 +143,7 @@ static int gpt_unique(size_t off)
 		size_t h = headers[i], e = entries[i];
 		if ((off >= h + 0x10 && off < h + 0x14) || (off >= h + 0x38 && off < h + 0x48) ||
 		    (off >= h + 0x58 && off < h + 0x5c) ||
+		    (off >= e && off < e + 0x100 && (off - e) % 0x80 >= 0x28 && (off - e) % 0x80 < 0x30) ||
 		    (off >= e && off < e + 0x4000 && (off - e) % 0x80 >= 0x10 && (off - e) % 0x80 < 0x20))
 			return 1;
 	}
@@ -127,7 +154,7 @@ static int same_boot_layout(const unsigned char *current, const unsigned char *n
 			    size_t start, size_t end)
 {
 	for (; start < end; start++)
-		if (current[start] != next[start] && !gpt_unique(start)) return 0;
+		if (current[start] != next[start] && !gpt_variable(start)) return 0;
 	return 1;
 }
 
@@ -140,6 +167,7 @@ int tyf_loader_preserves_device(const void *next_data, size_t next_size,
 	unsigned int i, matched = 0;
 	if (current_size != TYF_BOOT_SIZE || tyf_parse_loader(next, next_size, &image) ||
 	    !gpt_checksums_valid(current) || !gpt_checksums_valid(next) ||
+	    !gpt_fip_sizes_valid(current, next) || !gpt_fip_sizes_valid(next, next) ||
 	    !same_boot_layout(current, next, 0, TYF_FIP0_OFFSET) ||
 	    !same_boot_layout(current, next, 0x1c0000, TYF_BOOT_SIZE)) return -1;
 	/* An interrupted update may leave old/new BL33s or one invalid ToC. */

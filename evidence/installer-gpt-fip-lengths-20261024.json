@@ -1,0 +1,143 @@
+{
+  "date": "2026-10-24",
+  "scope": "Offline reproduction, production installer --check, complete build and regression tests; no physical device flash writes performed",
+  "reported_device": {
+    "hardware_version": "V1.0.0",
+    "software_version": "V1.0.5",
+    "boot_sha256": "f231de7b144b28044550a3ee0306b042eb6ad65ea573b9866f532b31c42693cf",
+    "boot_bytes": 2097152,
+    "variant_matching_bl2_bl31": "4ge"
+  },
+  "stock_chain_validation": {
+    "certificate_signatures_verified": 6,
+    "public_key_links_verified": 5,
+    "payload_hashes_verified": 3
+  },
+  "matching_early_firmware": {
+    "bl2": {
+      "bytes": 132816,
+      "sha256": "affb2547abd073c1474e6eb01e7ab9831565e98a384b8b9f9221b29f4a32a237"
+    },
+    "bl31": {
+      "bytes": 128224,
+      "sha256": "9ff891ae6a4ad59c48cc3a5e582f916b777a48a8d5a59e3f22b8b21567b2b905"
+    }
+  },
+  "gpt": {
+    "both_headers_and_entry_array_crcs_valid": true,
+    "sample_fip_last_lbas": [
+      "0x79e",
+      "0xd9e"
+    ],
+    "4ge_baseline_fip_last_lbas": [
+      "0x7ae",
+      "0xdae"
+    ],
+    "sample_fip_end_exclusive": [
+      "0xf3e00",
+      "0x1b3e00"
+    ],
+    "4ge_baseline_fip_end_exclusive": [
+      "0xf5e00",
+      "0x1b5e00"
+    ],
+    "non_identity_differing_byte_offsets": [
+      "0x428",
+      "0x4a8",
+      "0x1fbe28",
+      "0x1fbea8"
+    ],
+    "root_cause": "The old preservation check compares FIP LastLBA fields byte-for-byte. OEM BL33/FIP sizes differ despite identical 4ge BL2/BL31 and fixed slot starts.",
+    "fix": "Allow only the first two GPT entries LastLBA fields to vary; validate fixed starts, slot bounds, primary/backup agreement and capacity for every proposed FIP payload. Retain CRC, other layout/reserved bytes, BL2/BL31 and package certificate checks. Keep local GPT unchanged."
+  },
+  "before_fix": {
+    "installer_returncode": 1,
+    "output": "Package signatures verified; no local boot profile matches. Flash unchanged.\n4ge: primary GPT/reserved area differs at boot offset 0x000210\n4ge: backup GPT/reserved area differs at boot offset 0x1fbe10\n4ge: local FIP0 BL2=match, BL31=match\n4ge: local FIP1 BL2=match, BL31=match\n2p5g: primary GPT/reserved area differs at boot offset 0x000210\n2p5g: backup GPT/reserved area differs at boot offset 0x1fbe10\n2p5g: local FIP0 BL2=different, BL31=different\n2p5g: local FIP1 BL2=different, BL31=different\nPackage signatures or local BL2/BL31/GPT profile do not match\n"
+  },
+  "after_fix_offline_checks": [
+    {
+      "input": "4ge-boot.bin",
+      "returncode": 0,
+      "stdout": "Detected TYFZA1 4ge; matching 2 MiB loader SHA256: 56c58f0d9c81e28fc7c8d2e5e20196e04d1abcd3802dffa6a8ea80b7d7d322f3\nPackage and board checks passed; Flash unchanged.\n",
+      "stderr": ""
+    },
+    {
+      "input": "2p5g-boot.bin",
+      "returncode": 0,
+      "stdout": "Detected TYFZA1 2p5g; matching 2 MiB loader SHA256: 45ffc2eb7f006857d71c5e3b3a88bbaf75e65a6297eb37321855d249e13fb950\nPackage and board checks passed; Flash unchanged.\n",
+      "stderr": ""
+    },
+    {
+      "input": "reported-mtd0-boot.bin",
+      "returncode": 0,
+      "stdout": "Detected TYFZA1 4ge; matching 2 MiB loader SHA256: 56c58f0d9c81e28fc7c8d2e5e20196e04d1abcd3802dffa6a8ea80b7d7d322f3\nPackage and board checks passed; Flash unchanged.\n",
+      "stderr": ""
+    }
+  ],
+  "validation": {
+    "python_unittest_count": 130,
+    "python_unittest_result": "OK",
+    "frontend": "Version/commit, both boards, translation, file selection and five restore flows passed",
+    "uboot_sandbox_crypto_cases": 4,
+    "uboot_sandbox_crypto_result": "passed"
+  },
+  "build": {
+    "base_commit": "fe90f2633d080789a3a64c425c239578ac182c42",
+    "project_version": "1.2",
+    "display_commit": "fe90f26-dirty",
+    "artifacts": {
+      "tyfza1-uboot-install.run": {
+        "bytes": 3197851,
+        "sha256": "316c8b41b685788f0cf9254214dfa718694084f079bf2c296a135c9241cc58a2"
+      },
+      "tyfza1-uboot-universal.bin": {
+        "bytes": 4194320,
+        "sha256": "148c462522a621483222dd10735a27280b06480a246b8a9ddf14ff66c750345e"
+      }
+    }
+  },
+  "safety_review": {
+    "conclusion": "No new write-range, GPT preservation, early-firmware identity or signature gate issue found. Physical cold boot on the reported unit remains untested.",
+    "simulated_install_on_reported_boot": {
+      "scope": "Real reported boot image; production select_board and write_fips; emulated MTD ioctls and file I/O, no physical device writes",
+      "install_returncode": 0,
+      "erase_offsets": [
+        "0x100000",
+        "0x120000",
+        "0x140000",
+        "0x160000",
+        "0x180000",
+        "0x1a0000",
+        "0x40000",
+        "0x60000",
+        "0x80000",
+        "0xa0000",
+        "0xc0000",
+        "0xe0000"
+      ],
+      "expected_erase_order_matches": true,
+      "gpt_and_reserved_bytes_unchanged": true,
+      "bl2_and_bl31_unchanged": true,
+      "redundant_fips_identical": true,
+      "proposed_complete_fip_bytes": 501139,
+      "existing_gpt_fip_capacity_bytes": 736768,
+      "remaining_capacity_bytes": 235629,
+      "new_chain_verified": {
+        "certificate_signatures_verified": 6,
+        "public_key_links_verified": 5,
+        "payload_hashes_verified": 3
+      },
+      "post_write_offline_check": {
+        "returncode": 0,
+        "stdout": "Detected TYFZA1 4ge; matching 2 MiB loader SHA256: 56c58f0d9c81e28fc7c8d2e5e20196e04d1abcd3802dffa6a8ea80b7d7d322f3\nPackage and board checks passed; Flash unchanged.\n",
+        "stderr": ""
+      }
+    },
+    "additional_regressions": [
+      "FIP GPT capacity at the exact sector-rounded payload boundary and one sector below",
+      "Complete production selection/write/readback on both variants with OEM GPT lengths",
+      "Invalid certificate in either bundle variant rejects before the first erase"
+    ],
+    "existing_fault_regressions": "Bad block before any erase; FIP1 failure leaves FIP0 intact; readback corruption stops before the next erase"
+  }
+}
