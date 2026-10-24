@@ -212,7 +212,7 @@ sudo apt-get install \
   build-essential gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
   device-tree-compiler flex bison libssl-dev python3-cryptography \
   python3-dev python3-pyelftools python3-setuptools swig \
-  libgnutls28-dev uuid-dev qemu-system-arm
+  libgnutls28-dev uuid-dev zlib1g-dev qemu-system-arm
 ```
 
 ### 2. 编译与打包
