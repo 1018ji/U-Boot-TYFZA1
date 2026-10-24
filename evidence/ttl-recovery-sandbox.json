@@ -1,0 +1,112 @@
+{
+  "scope": "Generated recovery image executed by real U-Boot source/Hush/hash/memory commands; NAND calls modeled, no physical Flash writes",
+  "cases": [
+    {
+      "case": "check-only",
+      "result": "passed",
+      "expected_erases": 0
+    },
+    {
+      "case": "install-4ge",
+      "result": "passed",
+      "expected_erases": 2
+    },
+    {
+      "case": "install-2p5g",
+      "result": "passed",
+      "expected_erases": 2
+    },
+    {
+      "case": "per-device-gpt",
+      "result": "passed",
+      "expected_erases": 2
+    },
+    {
+      "case": "bad-gpt-crc",
+      "result": "passed",
+      "expected_erases": 0
+    },
+    {
+      "case": "reserved-change",
+      "result": "passed",
+      "expected_erases": 0
+    },
+    {
+      "case": "foreign-early-firmware",
+      "result": "passed",
+      "expected_erases": 0
+    },
+    {
+      "case": "bad-table-crc",
+      "result": "passed",
+      "expected_erases": 0
+    },
+    {
+      "case": "bad-fip-capacity",
+      "result": "passed",
+      "expected_erases": 0
+    },
+    {
+      "case": "split-gpt-lengths",
+      "result": "passed",
+      "expected_erases": 0
+    },
+    {
+      "case": "bad-block",
+      "result": "passed",
+      "expected_erases": 0
+    },
+    {
+      "case": "erase-failure",
+      "result": "passed",
+      "expected_erases": 0
+    },
+    {
+      "case": "write-failure",
+      "result": "passed",
+      "expected_erases": 1
+    },
+    {
+      "case": "readback-failure",
+      "result": "passed",
+      "expected_erases": 1
+    },
+    {
+      "case": "bad-script-crc",
+      "result": "passed",
+      "expected_erases": 0
+    },
+    {
+      "case": "wrong-embedded-package",
+      "result": "passed",
+      "expected_erases": 0
+    }
+  ],
+  "official_release_validation": {
+    "cases": [
+      {
+        "case": "official-1.1-4ge",
+        "result": "passed"
+      },
+      {
+        "case": "official-1.1-2p5g",
+        "result": "passed"
+      },
+      {
+        "case": "reported-stock-4ge",
+        "result": "passed"
+      }
+    ],
+    "official_bundle_sha256": "e340dc0ea985a6cfe5aa41b0815c9b8559e3ce554f9370783468a2cfc5df6b46",
+    "rescue_sha256": "1fbd1154ac549b5f791cbd8fd822987e5f3c9852fc66886c8f882febf72e158b"
+  },
+  "unit_tests": {
+    "run": 149,
+    "skipped": 2,
+    "result": "OK",
+    "skip_reason": "Two optional OEM module/oracle tests require external inputs"
+  },
+  "issue": "https://github.com/LeoooChen/U-Boot-TYFZA1/issues/4#issuecomment-6382759516",
+  "target_release": "v1.4",
+  "physical_device_validation": "Not performed; NAND I/O modeled, actual source/Hush/hash/memory commands executed"
+}

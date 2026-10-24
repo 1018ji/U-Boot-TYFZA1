@@ -15,6 +15,7 @@
 <p align="center">
   <a href="#下载">下载</a> ·
   <a href="#安装">安装</a> ·
+  <a href="docs/TTL-RECOVERY.md">TTL 串口恢复</a> ·
   <a href="#恢复网页">恢复网页</a> ·
   <a href="#构建">构建</a> ·
   <a href="https://github.com/LeoooChen/U-Boot-TYFZA1/issues">问题反馈</a>
@@ -116,6 +117,10 @@ sh /tmp/tyfza1-uboot-install.run
 ```
 
 看到 `U-Boot installed.` 后保存 boot 备份，再执行 `reboot`。
+
+### TTL 串口恢复旧版 U-Boot
+
+旧版仍能进入 `TYFZA1#`，但因 `Recovery PHY missing` 等错误打不开网页时，可按 [TTL 串口恢复教程](docs/TTL-RECOVERY.md)，通过 Kermit 传入恢复文件、检查本机引导信息，再更新双份 FIP。教程给出完整命令、成功标志和异常处理。
 
 ## 恢复网页
 
