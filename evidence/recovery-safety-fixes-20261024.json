@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-24",
+  "version": "1.4",
+  "base_commit": "8e73d7579031328a117120a4620b768af8147eba",
+  "scope": "Fresh AArch64 production build; production NI startup/selection and HTTP MTD writer compiled against modeled hardware I/O. No physical flash writes or 2.5G electrical/link acceptance in this session.",
+  "issue": "https://github.com/LeoooChen/U-Boot-TYFZA1/issues/4#issuecomment-6340170243",
+  "fixes": {
+    "phy_failure_isolation": "Quarantine only the missing/failed PHY, including Clause22 resume errors. Scan and enable healthy ports; fall back from a failed manually selected port. Preserve the normal RTL8221B initialization and 2500 Mbps path. Report ENODEV only when no PHY initializes.",
+    "physical_partition_writes": "Keep NAND and RAM offsets aligned across bad blocks; synthesize FF gaps on readback. Scan the entire aligned write range before erase and refuse non-FF payload at bad physical blocks or bad-block query errors.",
+    "boot_protection": "Reject generic raw writes to boot and whole-chip MTD at the server and remove boot from the generic write selector. Boot/whole-chip backups remain available. Dedicated FIP update and chunked restore retain their own validation."
+  },
+  "regression_coverage": [
+    "External PHY missing or configuration timeout: each healthy GbE port can be selected and NI startup succeeds",
+    "Healthy external PHY still selects port 4 at 2500 Mbps, including when internal PHYs fail",
+    "Each internal PHY missing/config/read/write error is isolated; no failed PHY is polled afterward",
+    "Failed fixed-port setting falls back; recovery starts without a cable and selects a healthy port on retry",
+    "No usable PHY still fails; all four 4ge ports still work in the startup model",
+    "Physical backups with first/middle/last bad blocks and nonzero-offset subranges preserve good-block data and untouched ranges",
+    "Bad-block query errors and incompatible payloads reject before any erase",
+    "Raw boot/whole-chip writes reject before erase, and backups still work",
+    "Invalid bounds/alignment reject before erase; readback corruption fails; existing dedicated FIP fault tests still pass"
+  ],
+  "validation": {
+    "unit_tests_run": 146,
+    "unit_tests_skipped": 2,
+    "skipped_reason": "Two optional original OEM module/oracle tests require external CLI inputs; the U-Boot PHY/model tests run normally",
+    "unit_result": "OK",
+    "frontend": "Version/commit, both boards, translation, file selection and five restore flows passed",
+    "uboot_sandbox_crypto_cases": 4,
+    "uboot_sandbox_crypto_result": "passed",
+    "offline_installer_checks": [
+      {
+        "input": "4ge-boot.bin",
+        "returncode": 0,
+        "stdout": "Detected TYFZA1 4ge; matching 2 MiB loader SHA256: 274917034a7feaac5a112e1bcf40eb7b97f827ac8b0a4e5add670c62566efa74\nPackage and board checks passed; Flash unchanged.\n"
+      },
+      {
+        "input": "2p5g-boot.bin",
+        "returncode": 0,
+        "stdout": "Detected TYFZA1 2p5g; matching 2 MiB loader SHA256: 99b880d00c8d9b760e4aab1d75ac016d23180686e63f18218d46fc8bc5ab8c25\nPackage and board checks passed; Flash unchanged.\n"
+      },
+      {
+        "input": "reported-mtd0-boot.bin",
+        "returncode": 0,
+        "stdout": "Detected TYFZA1 4ge; matching 2 MiB loader SHA256: 274917034a7feaac5a112e1bcf40eb7b97f827ac8b0a4e5add670c62566efa74\nPackage and board checks passed; Flash unchanged.\n"
+      }
+    ],
+    "source_sha256": {
+      "README.md": "1a1ed0b9f9a54061fa54eb889ca0b4baaa1dfd169ef704471b1b93fe867373b2",
+      "RELEASE_NOTES.md": "302bc41dd769163cf9b873fbf6c27b25ffa9f03c9457ff722ef5bdfbbc052790",
+      "VERSION": "9d2bf356d838faba1759efd3e9de32647bd68e9da8c92878074b392872e9f04e",
+      "overlay/net/lwip/httpd-page.html": "8536e1423b225bccb2580e41ab4ccc4f892e5b193cf971d15714c88e03bf5bb3",
+      "scripts/prepare.py": "e704f5fecf07e7644c3ee10f727501e230fbe92590372ef6292144d67965ae9b",
+      "tests/frontend_test.js": "11aebfc9c281c9cd99751690067830b7e9d425e85075faf50e7c72656ca477b7",
+      "tests/preview.py": "e41319b5ce7e28fe5e2c43b2decd0fc246f1a9a50b27a00a8fd5b2dc2e0cd79d",
+      "tests/test_ni_start.py": "0e5ec518b8f8ba86fd8745d1622e5761257fe08e253fe3ea22d917416b040ecc",
+      "tests/test_storage_write.py": "3699509721d4eb19be92d64035c7bd7030977ccaf56280853bead64f0704ac85"
+    }
+  }
+}

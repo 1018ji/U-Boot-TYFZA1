@@ -47,6 +47,14 @@ vm.runInContext(script,context);
  assert.equal(document.getElementById('ports').textContent,'2.5GE + 3×GE');
  assert.equal(document.getElementById('commit').textContent,'');
  vm.runInContext(`
+ targets=[{kind:'mtd',name:'nand0',whole:true,size:268435456},
+          {kind:'mtd',name:'boot',whole:false,size:2097152},
+          {kind:'mtd',name:'env',whole:false,size:262144},
+          {kind:'ubi',name:'ubi_Config',size:6356992}];
+ catalog();
+ assert.equal(el('backupTarget').options.length,4);
+ assert.equal(el('writeTarget').options.length,2);
+ assert.equal(el('writeTarget').options.map(o=>targets[Number(o.value)].name).join(','),'env,ubi_Config');
  const pickerInput=document.createElement('input'),picker=filePicker(pickerInput);
  assert.equal(picker.children[1].textContent,'选择文件');
  assert.equal(picker.children[2].textContent,'未选择文件');

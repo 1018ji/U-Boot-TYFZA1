@@ -89,9 +89,27 @@ def main():
     replace(board / "vendor/eth_ni.c", "static void ni_auto_scan_active_port", "static int tyf_ni_phy_status(struct phy_device *phy);\n\nstatic void ni_auto_scan_active_port")
     replace(board / "vendor/eth_ni.c", "\t\tphy_startup(phydev);", "\t\ttyf_ni_phy_status(phydev);")
     replace(board / "vendor/eth_ni.c", "\t\tphy_startup(p);", "\t\ttyf_ni_phy_status(p);")
-    replace(board / "vendor/eth_ni.c", "\t\t\tif (phydev) {\n\t\t\t\tprintf", "\t\t\tif (!phydev) {\n\t\t\t\tprintf(\"Recovery PHY missing: port %d, MDIO %d\\n\", i, m->phy_id);\n\t\t\t\treturn -ENODEV;\n\t\t\t}\n\t\t\tif (phydev) {\n\t\t\t\tprintf")
+    replace(board / "vendor/eth_ni.c", "\t\tint i, val;", "\t\tint i, val, usable = 0;")
+    replace(board / "vendor/eth_ni.c", "\tif (priv->active_port < 0)\n\t\treturn NULL;",
+            "\tif (!is_valid_port(priv, priv->active_port))\n\t\treturn NULL;")
+    replace(board / "vendor/eth_ni.c", "\t\t\tif (phydev) {\n\t\t\t\tprintf", "\t\t\tif (!phydev) {\n\t\t\t\tprintf(\"Recovery PHY missing: port %d, MDIO %d; disabling this port\\n\", i, m->phy_id);\n\t\t\t\tm->phy_id = -1;\n\t\t\t\tcontinue;\n\t\t\t}\n\t\t\tif (phydev) {\n\t\t\t\tprintf")
     replace(board / "vendor/eth_ni.c", '\tprintf("CA NI version 0.9(DM_ETH)\\n");', '\tret = tyf_ni_board_prepare(priv);\n\tif (ret) return ret;\n\tprintf("CA NI version 0.9(DM_ETH)\\n");')
-    replace(board / "vendor/eth_ni.c", "\t\t\t\tphy_config(phydev);\n\n\t\t\t\tval = phy_read", "\t\t\t\tval = phy_config(phydev);\n\t\t\t\tif (val) {\n\t\t\t\t\tprintf(\"Recovery PHY port %d initialization failed (%d).\\n\", i, val);\n\t\t\t\t\treturn val;\n\t\t\t\t}\n\t\t\t\tif (phydev->is_c45) continue;\n\n\t\t\t\tval = phy_read")
+    replace(board / "vendor/eth_ni.c", "\t\t\t\tphy_config(phydev);\n\n\t\t\t\tval = phy_read", "\t\t\t\tval = phy_config(phydev);\n\t\t\t\tif (val) {\n\t\t\t\t\tprintf(\"Recovery PHY port %d initialization failed (%d); disabling this port\\n\", i, val);\n\t\t\t\t\tphydev->link = 0;\n\t\t\t\t\tm->phy_id = -1;\n\t\t\t\t\tcontinue;\n\t\t\t\t}\n\t\t\t\tif (phydev->is_c45) { usable++; continue; }\n\n\t\t\t\tval = phy_read")
+    replace(board / "vendor/eth_ni.c", '''\t\t\t\tval &= ~BMCR_PDOWN;
+\t\t\t\tphy_write(phydev, MDIO_DEVAD_NONE, MII_BMCR, val);''', '''\t\t\t\tif (val >= 0)
+\t\t\t\t\tval = phy_write(phydev, MDIO_DEVAD_NONE, MII_BMCR, val & ~BMCR_PDOWN);
+\t\t\t\tif (val < 0) {
+\t\t\t\t\tprintf("Recovery PHY port %d resume failed (%d); disabling this port\\n", i, val);
+\t\t\t\t\tphydev->link = 0;
+\t\t\t\t\tm->phy_id = -1;
+\t\t\t\t\tcontinue;
+\t\t\t\t}
+\t\t\t\tusable++;''')
+    replace(board / "vendor/eth_ni.c", "\t\tni_auto_scan_active_port(priv);\n\t\tpriv->is_phyinited = 1;", '''\t\tif (!usable) return -ENODEV;
+\t\t/* A failed manually selected port must not hide healthy recovery ports. */
+\t\tif (!is_valid_port(priv, priv->active_port)) priv->active_scan = 1;
+\t\tni_auto_scan_active_port(priv);
+\t\tpriv->is_phyinited = 1;''')
     replace(board / "vendor/eth_ni.c", '\t} else\n\t\tprintf("No PHY available\\n");', '\t} else\n\t\tputs("Recovery will wait for a LAN link.\\n");')
     replace(board / "vendor/eth_ni.c", "\t\tpriv->aal_mode_sync(priv->active_port, priv->maps[priv->active_port].sds_mode,\n\t\t\t\t    p);", "\t\tif (priv->active_port == 4 && tyf_ni_port4_speed(p)) return -EIO;\n\t\tif (priv->aal_mode_sync(priv->active_port, priv->maps[priv->active_port].sds_mode, p))\n\t\t\treturn -EIO;")
     replace(board / "vendor/eth_ni.c", "\tni_enable_tx_rx(priv->active_port, 1);", "\tif (is_valid_port(priv, priv->active_port)) ni_enable_tx_rx(priv->active_port, 1);")
@@ -153,6 +171,60 @@ def main():
     page.write_bytes(b"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Encoding: gzip\r\nConnection: close\r\nContent-Length: " + str(len(compressed)).encode() + b"\r\n\r\n" + compressed)
     replace(http, "fs_set_data(file, httpd_page, httpd_page_size);", "fs_set_data(file, httpd_page, httpd_page_size);\n\t\tfile->flags = FS_FILE_FLAGS_HEADER_INCLUDED;")
     replace(http, '#include <net/httpd.h>', '#include <net/httpd.h>\n#include <tyfza1_recovery.h>\n#include <tyfza1_build.h>')
+    # Match physical main-area backups: bad-block gaps occupy bytes in RAM, too.
+    replace(http, "/* NAND offsets advance across factory bad blocks while RAM stays packed. */",
+            "/* Preserve physical offsets and FF gaps, matching downloaded MTD backups. */")
+    replace(http, '''\t\t\t\tphysical = round_down(physical, mtd->erasesize) +
+\t\t\t\t\tmtd->erasesize;
+\t\t\t\tcontinue;''', '''\t\t\t\tsize_t skip = min_t(size_t, remaining,
+\t\t\t\t\t\t\t mtd->erasesize - physical % mtd->erasesize);
+\t\t\t\tif (read) memset(data, 0xff, skip);
+\t\t\t\tphysical += skip;
+\t\t\t\tdata += skip;
+\t\t\t\tremaining -= skip;
+\t\t\t\tservice_network();
+\t\t\t\tcontinue;''')
+    replace(http, "static int run_storage_job(void)\n{", '''/* Called only after range and eraseblock-alignment checks, before any erase. */
+static int storage_mtd_check_write(struct mtd_info *mtd, u64 offset,
+\t\t\t\t   const u8 *data, size_t size)
+{
+\tsize_t pos, i;
+\tint ret;
+\tif (!mtd_uses_pages(mtd)) return 0;
+\tfor (pos = 0; pos < size; pos += mtd->erasesize) {
+\t\tret = mtd_block_isbad(mtd, offset + pos);
+\t\tif (ret < 0) return ret;
+\t\tif (ret > 0)
+\t\t\tfor (i = 0; i < mtd->erasesize; i++)
+\t\t\t\tif (data[pos + i] != 0xff) {
+\t\t\t\t\tputs("Image contains data at a bad physical block; write refused.\\n");
+\t\t\t\t\treturn -EINVAL;
+\t\t\t\t}
+\t\tservice_network();
+\t}
+\treturn 0;
+}
+
+static int run_storage_job(void)
+{''')
+    replace(http, '''\tif (!upload_region_valid(load_addr, request.size)) {
+\t\tret = CMD_RET_FAILURE;
+\t\tgoto out_put_mtd;
+\t}''', '''\t/* Boot updates and whole-chip restores have separate validated write paths. */
+\tif (!mtd_is_partition(mtd) || !strcmp(mtd->name, "boot")) {
+\t\tputs("Use U-Boot update or full Flash restore for this target.\\n");
+\t\tret = -EPERM;
+\t\tgoto out_put_mtd;
+\t}
+\tif (!upload_region_valid(load_addr, request.size)) {
+\t\tret = CMD_RET_FAILURE;
+\t\tgoto out_put_mtd;
+\t}''')
+    replace(http, '''\tphase = "erase";
+\tret = storage_mtd_erase(mtd, request.offset, request.size);''', '''\tret = storage_mtd_check_write(mtd, request.offset, buffer, request.size);
+\tif (ret) goto out_unmap;
+\tphase = "erase";
+\tret = storage_mtd_erase(mtd, request.offset, request.size);''')
     replace(http, '"httpd_ipaddr", "httpd_netmask",', '"httpd_ipaddr", "httpd_netmask", "httpd_dhcp",')
     replace(http, '\tif (httpd_running)\n\t\treturn 0;', '\tif (httpd_running)\n\t\treturn 0;\n\tif (env_get_yesno("httpd_dhcp") == 0) with_dhcp = false;')
     replace(http, '\t\tret = env_set(env_key, env_value[0] ? env_value : NULL);', '''\t\t/* Accept the familiar IP names as persistent recovery settings, too. */

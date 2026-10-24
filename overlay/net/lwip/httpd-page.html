@@ -114,7 +114,7 @@ function catalog(){
  for(const id of ['backupTarget','writeTarget']){
   const previous=el(id).value;el(id).replaceChildren();
   targets.forEach((v,i)=>{
-   if(id==='writeTarget'&&v.whole)return;
+   if(id==='writeTarget'&&(v.whole||(v.kind==='mtd'&&v.name==='boot')))return;
    const option=document.createElement('option');option.value=String(i);
    option.textContent=(v.whole?t('whole'):v.name)+' · '+v.kind.toUpperCase()+' · '+bytes(v.size);
    el(id).appendChild(option);
